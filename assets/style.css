@@ -1,0 +1,17 @@
+.ba-search-active-visible, .ba-search-active-visible-inline {
+  display: none !important;
+}
+.ba-search-container {
+  margin-bottom: 10px;
+}
+.ba-search-container-active .ba-search-active-visible {
+  display: block !important;
+}
+.ba-search-container-active .ba-search-active-visible-inline {
+  display: inline !important;
+}
+.ba-search-button-cancel {
+  margin-left: 7px !important;
+}
+
+/*# sourceMappingURL=style.css.map */

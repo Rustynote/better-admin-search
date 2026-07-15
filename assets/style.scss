@@ -1,0 +1,22 @@
+.ba-search {
+    $bas: &;
+    &-active-visible, &-active-visible-inline {
+        display: none !important;
+    }
+    &-container {
+        margin-bottom: 10px;
+        &-active {
+            #{$bas}-active-visible {
+                display: block !important;
+                &-inline {
+                    display: inline !important;
+                }
+            }
+        }
+    }
+    &-button {
+        &-cancel {
+            margin-left: 7px !important;
+        }
+    }
+}
