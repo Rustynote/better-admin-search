@@ -10,8 +10,36 @@
 .ba-search-container-active .ba-search-active-visible-inline {
   display: inline !important;
 }
+.ba-search-container select {
+  float: none !important;
+}
 .ba-search-button-cancel {
   margin-left: 7px !important;
+}
+.ba-search-group {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--wp-admin-theme-color);
+  border-radius: 5px;
+  max-width: 800px;
+  position: relative;
+}
+.ba-search-group-header {
+  margin-bottom: 7px;
+}
+.ba-search-group-header .ba-search-block-remove {
+  background: none;
+  border: 0;
+  outline: 0;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+.ba-search-group-footer {
+  margin-top: 7px;
 }
 
 /*# sourceMappingURL=style.css.map */
