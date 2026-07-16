@@ -47,7 +47,12 @@
             margin-top: 7px;
         }
     }
-    &-block {
-
+    &-condition {
+        display: flex;
+        align-items: baseline;
+    }
+    &-field-wrapper {
+        display: flex;
+        flex-direction: column;
     }
 }

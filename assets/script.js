@@ -136,13 +136,16 @@ class FilterGroup {
     }
     
     // TODO: point this at the real REST endpoint / nonce for your setup
-    static async fetchValueOptions(field) {
+    static async fetchValueOptions(field, metaKey = null) {
         try {
-            const response = await fetch(`${baSearchData.apiUrl}?field=${encodeURIComponent(field)}`, {
+            const params = new URLSearchParams({field});
+            if(metaKey) params.set('meta_key', metaKey);
+            
+            const response = await fetch(`${baSearchData.apiUrl}?${params}`, {
                 headers: {'X-WP-Nonce': baSearchData.nonce},
             });
             if(!response.ok) return [];
-            return await response.json(); // expected: [{ value, label }, ...]
+            return await response.json();
         } catch {
             return [];
         }
@@ -176,21 +179,45 @@ class FilterGroup {
         const operatorSelect = FilterGroup.buildOperatorSelect();
         const valueSelect = FilterGroup.buildValueSelect();
         
+        const metaKeyInput = document.createElement('input');
+        metaKeyInput.type = 'text';
+        metaKeyInput.classList.add('ba-search-meta-key-input');
+        metaKeyInput.placeholder = 'Meta key';
+        metaKeyInput.style.display = 'none';
+        
+        const fieldWrapper = document.createElement('div');
+        fieldWrapper.classList.add('ba-search-field-wrapper');
+        fieldWrapper.append(fieldSelect, metaKeyInput);
+        
         const refreshValues = async () => {
-            if(FilterGroup.NO_VALUE_OPERATORS.has(operatorSelect.value)) {
+            const needsMetaKey = fieldSelect.value === 'postmeta' && !metaKeyInput.value.trim();
+            
+            if(needsMetaKey || FilterGroup.NO_VALUE_OPERATORS.has(operatorSelect.value)) {
                 valueSelect.disabled = true;
                 valueSelect.innerHTML = '';
                 return;
             }
+            
             valueSelect.disabled = true;
             valueSelect.innerHTML = '<option>Loading…</option>';
-            const items = await FilterGroup.fetchValueOptions(fieldSelect.value);
+            const items = await FilterGroup.fetchValueOptions(fieldSelect.value, metaKeyInput.value);
             FilterGroup.populateValueSelect(valueSelect, items);
             valueSelect.disabled = false;
         };
         
-        fieldSelect.addEventListener('change', refreshValues);
+        const updateMetaKeyVisibility = () => {
+            metaKeyInput.style.display = fieldSelect.value === 'postmeta' ? '' : 'none';
+        };
+        
+        fieldSelect.addEventListener('change', () => {
+            updateMetaKeyVisibility();
+            refreshValues();
+        });
         operatorSelect.addEventListener('change', refreshValues);
+        metaKeyInput.addEventListener('input', refreshValues);
+        
+        
+        updateMetaKeyVisibility();
         refreshValues();
         
         const removeBtn = FilterGroup.createRemoveButton(condition, this.children, () => {
@@ -200,7 +227,7 @@ class FilterGroup {
             }
         });
         
-        condition.append(whereLabel, operatorToggle, fieldSelect, operatorSelect, valueSelect, removeBtn);
+        condition.append(whereLabel, operatorToggle, fieldWrapper, operatorSelect, valueSelect, removeBtn);
         
         this.childrenEl.appendChild(condition);
         this.children.push(condition);

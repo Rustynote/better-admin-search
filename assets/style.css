@@ -41,5 +41,13 @@
 .ba-search-group-footer {
   margin-top: 7px;
 }
+.ba-search-condition {
+  display: flex;
+  align-items: baseline;
+}
+.ba-search-field-wrapper {
+  display: flex;
+  flex-direction: column;
+}
 
 /*# sourceMappingURL=style.css.map */
