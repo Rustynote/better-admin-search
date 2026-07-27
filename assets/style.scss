@@ -62,6 +62,19 @@
     &-value-date, &-value-number {
         min-width: 140px;
     }
+    &-value-range {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    &-value-relative {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        &-amount {
+            width: 70px;
+        }
+    }
     &-tcs {
         $tcs: &;
         position: relative;

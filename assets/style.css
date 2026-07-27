@@ -56,6 +56,19 @@
 .ba-search-value-date, .ba-search-value-number {
   min-width: 140px;
 }
+.ba-search-value-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ba-search-value-relative {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ba-search-value-relative-amount {
+  width: 70px;
+}
 .ba-search-tcs {
   position: relative;
   display: inline-block;

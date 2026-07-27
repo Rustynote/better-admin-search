@@ -222,6 +222,20 @@ class FilterGroup {
 
     static NO_VALUE_OPERATORS = new Set(['is_set', 'not_set']);
 
+    // Operators that need a "from" and "to" value instead of a single one.
+    static RANGE_OPERATORS = new Set(['between', 'not_between']);
+
+    // Date operators expressed as a rolling amount of time (e.g. "in the last 7 days")
+    // rather than a fixed date.
+    static RELATIVE_DATE_OPERATORS = new Set(['last', 'not_in_last', 'before_last', 'in_next']);
+
+    static RELATIVE_DATE_UNITS = [
+        ['days', 'Days'],
+        ['weeks', 'Weeks'],
+        ['months', 'Months'],
+        ['years', 'Years'],
+    ];
+
     // Fields that need a sub-pick (which meta key / which taxonomy) before a value can load.
     static EXPANDABLE_FIELDS = new Set(['postmeta', 'taxonomies']);
 
@@ -357,6 +371,52 @@ class FilterGroup {
         return input;
     }
 
+    // "From" and "to" inputs for Between / Not Between, matching the condition's data type.
+    static buildRangeInput(dataType) {
+        const wrapper = document.createElement('div');
+        wrapper.classList.add('ba-search-value-range');
+
+        const buildBound = () => dataType === 'date' ? FilterGroup.buildDateInput() : FilterGroup.buildNumberInput();
+
+        const from = buildBound();
+        from.classList.add('ba-search-value-range-from');
+
+        const to = buildBound();
+        to.classList.add('ba-search-value-range-to');
+
+        const sep = document.createElement('span');
+        sep.classList.add('ba-search-value-range-sep');
+        sep.textContent = 'and';
+
+        wrapper.append(from, sep, to);
+        return wrapper;
+    }
+
+    // Amount + unit inputs for the relative date operators (Last, Not in the Last,
+    // Before the Last, In the Next), e.g. "7 Days".
+    static buildRelativeDateInput() {
+        const wrapper = document.createElement('div');
+        wrapper.classList.add('ba-search-value-relative');
+
+        const amount = document.createElement('input');
+        amount.type = 'number';
+        amount.min = '1';
+        amount.value = '1';
+        amount.classList.add('ba-search-value-relative-amount');
+
+        const unit = document.createElement('select');
+        unit.classList.add('ba-search-value-relative-unit');
+        FilterGroup.RELATIVE_DATE_UNITS.forEach(([value, label]) => {
+            const opt = document.createElement('option');
+            opt.value = value;
+            opt.textContent = label;
+            unit.appendChild(opt);
+        });
+
+        wrapper.append(amount, unit);
+        return wrapper;
+    }
+
     // Data type select shown under the field picker. Only fields listed in
     // baSearchData.editableDataTypeFields (currently just Custom Fields) can be changed
     // by the user; for every other field it just displays the fixed default.
@@ -464,9 +524,10 @@ class FilterGroup {
         // selection can't clobber a widget rebuilt by a later one.
         let refreshToken = 0;
 
-        // Swaps the value widget to match the condition's data type: a native date/number
-        // input for date/number (no API needed), a fixed True/False select for bool, or the
-        // fetched dropdown of existing values for string.
+        // Swaps the value widget to match the condition's data type and operator: an amount/unit
+        // pair for relative date operators, a "from"/"to" pair for range operators, a native
+        // date/number input for date/number (no API needed), a fixed True/False select for bool,
+        // or the fetched dropdown of existing values for string.
         const refreshValues = async () => {
             const token = ++refreshToken;
             const needsSubKey = FilterGroup.EXPANDABLE_FIELDS.has(fieldSelect.value) && !fieldSelect.metaKey;
@@ -474,6 +535,16 @@ class FilterGroup {
 
             if(!fieldSelect.value || needsSubKey || FilterGroup.NO_VALUE_OPERATORS.has(operatorSelect.value)) {
                 valueWrapper.replaceChildren(FilterGroup.buildValueSelect());
+                return;
+            }
+
+            if(FilterGroup.RELATIVE_DATE_OPERATORS.has(operatorSelect.value)) {
+                valueWrapper.replaceChildren(FilterGroup.buildRelativeDateInput());
+                return;
+            }
+
+            if(FilterGroup.RANGE_OPERATORS.has(operatorSelect.value)) {
+                valueWrapper.replaceChildren(FilterGroup.buildRangeInput(dataType));
                 return;
             }
 
