@@ -3,6 +3,184 @@ baSearchData = baSearchData || {
     filterBoxToggleCancelLabel: ''
 };
 
+// Two-column dropdown: left column lists options (grouped, e.g. taxonomies), right column
+// either shows a hint, or — for "expandable" options like Custom Fields — a searchable
+// sub-list fetched via onSearch. Picking a plain option or a searched sub-option both
+// close the panel and fire a 'bas-change' event.
+class TwoColumnSelect {
+    constructor({options, expandableKeys = [], placeholder = 'Select…', onLoad = null}) {
+        this.options = options;
+        this.expandableKeys = new Set(expandableKeys);
+        this.onLoad = onLoad;
+        this.value = null;
+        this.metaKey = null;
+
+        this.el = document.createElement('div');
+        this.el.classList.add('ba-search-tcs');
+
+        this.trigger = document.createElement('button');
+        this.trigger.type = 'button';
+        this.trigger.classList.add('ba-search-tcs-trigger', 'button');
+        this.trigger.textContent = placeholder;
+
+        this.panel = document.createElement('div');
+        this.panel.classList.add('ba-search-tcs-panel');
+        this.panel.hidden = true;
+
+        this.leftCol = document.createElement('div');
+        this.leftCol.classList.add('ba-search-tcs-col', 'ba-search-tcs-col-left');
+
+        this.rightCol = document.createElement('div');
+        this.rightCol.classList.add('ba-search-tcs-col', 'ba-search-tcs-col-right');
+
+        this.panel.append(this.leftCol, this.rightCol);
+        this.el.append(this.trigger, this.panel);
+
+        this.buildLeftColumn();
+        this.showHint();
+
+        this.trigger.addEventListener('click', () => this.toggle());
+        this.outsideClickHandler = e => {
+            if(!this.el.contains(e.target)) this.close();
+        };
+        document.addEventListener('click', this.outsideClickHandler);
+        this.el.addEventListener('keydown', e => {
+            if(e.key === 'Escape') this.close();
+        });
+    }
+
+    static humanize(key) {
+        return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    buildLeftColumn() {
+        Object.entries(this.options).forEach(([key, value]) => {
+            if(typeof value === 'object' && value !== null) {
+                const group = document.createElement('div');
+                group.classList.add('ba-search-tcs-group');
+
+                const label = document.createElement('div');
+                label.classList.add('ba-search-tcs-group-label');
+                label.textContent = TwoColumnSelect.humanize(key);
+                group.appendChild(label);
+
+                Object.entries(value).forEach(([subKey, subLabel]) => {
+                    group.appendChild(this.buildLeaf(subKey, subLabel, false));
+                });
+
+                this.leftCol.appendChild(group);
+            } else {
+                this.leftCol.appendChild(this.buildLeaf(key, value, this.expandableKeys.has(key)));
+            }
+        });
+    }
+
+    buildLeaf(key, label, expandable) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.classList.add('ba-search-tcs-option');
+        btn.textContent = label;
+        btn.dataset.key = key;
+
+        if(expandable) {
+            btn.classList.add('ba-search-tcs-option-expandable');
+            btn.addEventListener('click', () => this.expand(key, label, btn));
+        } else {
+            btn.addEventListener('click', () => this.select(key, null, label, null));
+        }
+
+        return btn;
+    }
+
+    showHint() {
+        this.rightCol.innerHTML = '';
+        const hint = document.createElement('p');
+        hint.classList.add('ba-search-tcs-hint');
+        hint.textContent = 'Please click the option on the left.';
+        this.rightCol.appendChild(hint);
+    }
+
+    async expand(key, parentLabel, btn) {
+        this.leftCol.querySelectorAll('.ba-search-tcs-option-active').forEach(el => {
+            el.classList.remove('ba-search-tcs-option-active');
+        });
+        btn.classList.add('ba-search-tcs-option-active');
+
+        this.rightCol.innerHTML = '';
+
+        const search = document.createElement('input');
+        search.type = 'search';
+        search.classList.add('ba-search-tcs-search');
+        search.placeholder = 'Search…';
+
+        const results = document.createElement('ul');
+        results.classList.add('ba-search-tcs-results');
+        results.innerHTML = '<li class="ba-search-tcs-results-status">Loading…</li>';
+
+        this.rightCol.append(search, results);
+        search.focus();
+
+        const renderResults = items => {
+            results.innerHTML = '';
+
+            if(!items.length) {
+                results.innerHTML = '<li class="ba-search-tcs-results-status">No results</li>';
+                return;
+            }
+
+            items.forEach(({value, label}) => {
+                const li = document.createElement('li');
+                const optBtn = document.createElement('button');
+                optBtn.type = 'button';
+                optBtn.textContent = label;
+                optBtn.addEventListener('click', () => this.select(key, value, parentLabel, label));
+                li.appendChild(optBtn);
+                results.appendChild(li);
+            });
+        };
+
+        // Load the full list once; searching filters it in-browser, no further requests.
+        const allItems = await this.onLoad?.(key) ?? [];
+        renderResults(allItems);
+
+        search.addEventListener('input', () => {
+            const query = search.value.trim().toLowerCase();
+            const filtered = query ? allItems.filter(({label}) => label.toLowerCase().includes(query)) : allItems;
+            renderResults(filtered);
+        });
+    }
+
+    select(key, subValue, label, subLabel) {
+        this.value = key;
+        this.metaKey = subValue;
+        this.trigger.textContent = subLabel ? `${label}: ${subLabel}` : label;
+        this.close();
+        this.el.dispatchEvent(new CustomEvent('bas-change', {detail: {field: key, metaKey: subValue}}));
+    }
+
+    toggle() {
+        if(this.panel.hidden) this.open(); else this.close();
+    }
+
+    open() {
+        this.panel.hidden = false;
+        this.el.classList.add('ba-search-tcs-open');
+    }
+
+    close() {
+        this.panel.hidden = true;
+        this.el.classList.remove('ba-search-tcs-open');
+        this.leftCol.querySelectorAll('.ba-search-tcs-option-active').forEach(el => {
+            el.classList.remove('ba-search-tcs-option-active');
+        });
+        this.showHint();
+    }
+
+    destroy() {
+        document.removeEventListener('click', this.outsideClickHandler);
+    }
+}
+
 class FilterGroup {
     static OPERATORS = [
         ['is', 'Is'],
@@ -14,6 +192,9 @@ class FilterGroup {
     ];
     
     static NO_VALUE_OPERATORS = new Set(['is_set', 'not_set']);
+
+    // Fields that need a sub-pick (which meta key / which taxonomy) before a value can load.
+    static EXPANDABLE_FIELDS = new Set(['postmeta', 'taxonomies']);
     
     constructor(operator = 'AND', isRoot = false, onEmpty = null) {
         this.operator = operator;
@@ -84,38 +265,7 @@ class FilterGroup {
         });
         return removeBtn;
     }
-    
-    static humanize(key) {
-        return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-    }
-    
-    // Field dropdown — flattens baSearchData.options, nesting objects (e.g. taxonomies) as optgroups
-    static buildFieldSelect(options) {
-        const select = document.createElement('select');
-        select.classList.add('ba-search-field-select');
-        
-        Object.entries(options).forEach(([key, value]) => {
-            if(typeof value === 'object' && value !== null) {
-                const group = document.createElement('optgroup');
-                group.label = FilterGroup.humanize(key);
-                Object.entries(value).forEach(([subKey, subLabel]) => {
-                    const opt = document.createElement('option');
-                    opt.value = subKey;
-                    opt.textContent = subLabel;
-                    group.appendChild(opt);
-                });
-                select.appendChild(group);
-            } else {
-                const opt = document.createElement('option');
-                opt.value = key;
-                opt.textContent = value;
-                select.appendChild(opt);
-            }
-        });
-        
-        return select;
-    }
-    
+
     static buildOperatorSelect() {
         const select = document.createElement('select');
         select.classList.add('ba-search-operator-select');
@@ -135,12 +285,29 @@ class FilterGroup {
         return select;
     }
     
-    // TODO: point this at the real REST endpoint / nonce for your setup
-    static async fetchValueOptions(field, metaKey = null) {
+    // Identifiers to drill into: meta_key names for postmeta, or the taxonomy list for taxonomies.
+    static async fetchKeys(field, postType = null) {
         try {
             const params = new URLSearchParams({field});
-            if(metaKey) params.set('meta_key', metaKey);
-            
+            if(postType) params.set('post_type', postType);
+
+            const response = await fetch(`${baSearchData.keysApiUrl}?${params}`, {
+                headers: {'X-WP-Nonce': baSearchData.nonce},
+            });
+            if(!response.ok) return [];
+            return await response.json();
+        } catch {
+            return [];
+        }
+    }
+
+    // Values for an already-chosen identifier: meta values for a meta_key, or terms of a taxonomy.
+    static async fetchValues(field, thing = null, postType = null) {
+        try {
+            const params = new URLSearchParams({field});
+            if(thing) params.set('thing', thing);
+            if(postType) params.set('post_type', postType);
+
             const response = await fetch(`${baSearchData.apiUrl}?${params}`, {
                 headers: {'X-WP-Nonce': baSearchData.nonce},
             });
@@ -175,58 +342,46 @@ class FilterGroup {
         condition.whereLabel = whereLabel;
         condition.operatorToggle = operatorToggle;
         
-        const fieldSelect = FilterGroup.buildFieldSelect(baSearchData.options);
+        const fieldSelect = new TwoColumnSelect({
+            options: baSearchData.options,
+            expandableKeys: FilterGroup.EXPANDABLE_FIELDS,
+            placeholder: 'Select field…',
+            onLoad: key => FilterGroup.fetchKeys(key, baSearchData.postType)
+        });
         const operatorSelect = FilterGroup.buildOperatorSelect();
         const valueSelect = FilterGroup.buildValueSelect();
-        
-        const metaKeyInput = document.createElement('input');
-        metaKeyInput.type = 'text';
-        metaKeyInput.classList.add('ba-search-meta-key-input');
-        metaKeyInput.placeholder = 'Meta key';
-        metaKeyInput.style.display = 'none';
-        
+
         const fieldWrapper = document.createElement('div');
         fieldWrapper.classList.add('ba-search-field-wrapper');
-        fieldWrapper.append(fieldSelect, metaKeyInput);
-        
+        fieldWrapper.append(fieldSelect.el);
+
         const refreshValues = async () => {
-            const needsMetaKey = fieldSelect.value === 'postmeta' && !metaKeyInput.value.trim();
-            
-            if(needsMetaKey || FilterGroup.NO_VALUE_OPERATORS.has(operatorSelect.value)) {
+            const needsSubKey = FilterGroup.EXPANDABLE_FIELDS.has(fieldSelect.value) && !fieldSelect.metaKey;
+
+            if(!fieldSelect.value || needsSubKey || FilterGroup.NO_VALUE_OPERATORS.has(operatorSelect.value)) {
                 valueSelect.disabled = true;
                 valueSelect.innerHTML = '';
                 return;
             }
-            
+
             valueSelect.disabled = true;
             valueSelect.innerHTML = '<option>Loading…</option>';
-            const items = await FilterGroup.fetchValueOptions(fieldSelect.value, metaKeyInput.value);
+            const items = await FilterGroup.fetchValues(fieldSelect.value, fieldSelect.metaKey, baSearchData.postType);
             FilterGroup.populateValueSelect(valueSelect, items);
             valueSelect.disabled = false;
         };
-        
-        const updateMetaKeyVisibility = () => {
-            metaKeyInput.style.display = fieldSelect.value === 'postmeta' ? '' : 'none';
-        };
-        
-        fieldSelect.addEventListener('change', () => {
-            updateMetaKeyVisibility();
-            refreshValues();
-        });
+
+        fieldSelect.el.addEventListener('bas-change', refreshValues);
         operatorSelect.addEventListener('change', refreshValues);
-        metaKeyInput.addEventListener('input', refreshValues);
-        
-        
-        updateMetaKeyVisibility();
-        refreshValues();
-        
+
         const removeBtn = FilterGroup.createRemoveButton(condition, this.children, () => {
+            fieldSelect.destroy();
             this.updateConditionToggles();
             if(!this.isRoot && this.children.length === 0) {
                 this.onEmpty?.();
             }
         });
-        
+
         condition.append(whereLabel, operatorToggle, fieldWrapper, operatorSelect, valueSelect, removeBtn);
         
         this.childrenEl.appendChild(condition);
