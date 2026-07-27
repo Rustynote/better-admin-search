@@ -48,6 +48,13 @@
 .ba-search-field-wrapper {
   display: flex;
   flex-direction: column;
+  gap: 4px;
+}
+.ba-search-value-wrapper {
+  display: inline-block;
+}
+.ba-search-value-date, .ba-search-value-number {
+  min-width: 140px;
 }
 .ba-search-tcs {
   position: relative;

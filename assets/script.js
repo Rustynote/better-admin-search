@@ -182,19 +182,53 @@ class TwoColumnSelect {
 }
 
 class FilterGroup {
-    static OPERATORS = [
-        ['is', 'Is'],
-        ['is_not', 'Is Not'],
-        ['contains', 'Contains'],
-        ['contains_not', 'Contains Not'],
-        ['is_set', 'Is set'],
-        ['not_set', 'Not set'],
-    ];
-    
+    // Available operators per data type — the value select repopulates from this whenever
+    // the condition's data type changes.
+    static OPERATORS = {
+        string: [
+            ['is', 'Is'],
+            ['is_not', 'Is Not'],
+            ['contains', 'Contains'],
+            ['contains_not', 'Does Not Contain'],
+            ['is_set', 'Is Set'],
+            ['not_set', 'Is Not Set'],
+        ],
+        number: [
+            ['equals', 'Equals'],
+            ['not_equals', 'Not Equals'],
+            ['greater_than', 'Greater Than'],
+            ['greater_than_or_equal', 'Greater Than or Equal To'],
+            ['less_than', 'Less Than'],
+            ['less_than_or_equal', 'Less Than or Equal To'],
+            ['between', 'Between'],
+            ['not_between', 'Not Between'],
+        ],
+        bool: [
+            ['is', 'Is'],
+        ],
+        date: [
+            ['last', 'Last'],
+            ['not_in_last', 'Not in the Last'],
+            ['between', 'Between'],
+            ['not_between', 'Not Between'],
+            ['on', 'On'],
+            ['not_on', 'Not On'],
+            ['before_last', 'Before the Last'],
+            ['before', 'Before'],
+            ['since', 'Since'],
+            ['in_next', 'In the Next'],
+        ],
+    };
+
     static NO_VALUE_OPERATORS = new Set(['is_set', 'not_set']);
 
     // Fields that need a sub-pick (which meta key / which taxonomy) before a value can load.
     static EXPANDABLE_FIELDS = new Set(['postmeta', 'taxonomies']);
+
+    static BOOL_OPTIONS = [
+        ['1', 'True'],
+        ['0', 'False'],
+    ];
     
     constructor(operator = 'AND', isRoot = false, onEmpty = null) {
         this.operator = operator;
@@ -266,16 +300,27 @@ class FilterGroup {
         return removeBtn;
     }
 
-    static buildOperatorSelect() {
+    static buildOperatorSelect(dataType = 'string') {
         const select = document.createElement('select');
         select.classList.add('ba-search-operator-select');
-        FilterGroup.OPERATORS.forEach(([value, label]) => {
+        FilterGroup.populateOperatorSelect(select, dataType);
+        return select;
+    }
+
+    // Repopulates an operator select for a given data type, keeping the current selection
+    // if it's still a valid choice (e.g. "Between" exists for both Number and Date).
+    static populateOperatorSelect(select, dataType) {
+        const previousValue = select.value;
+        select.innerHTML = '';
+        (FilterGroup.OPERATORS[dataType] ?? FilterGroup.OPERATORS.string).forEach(([value, label]) => {
             const opt = document.createElement('option');
             opt.value = value;
             opt.textContent = label;
             select.appendChild(opt);
         });
-        return select;
+        if(previousValue && [...select.options].some(opt => opt.value === previousValue)) {
+            select.value = previousValue;
+        }
     }
     
     static buildValueSelect() {
@@ -284,7 +329,51 @@ class FilterGroup {
         select.disabled = true;
         return select;
     }
-    
+
+    // Fixed True/False choice — no API fetch needed.
+    static buildBoolSelect() {
+        const select = document.createElement('select');
+        select.classList.add('ba-search-value-select', 'ba-search-value-bool');
+        FilterGroup.BOOL_OPTIONS.forEach(([value, label]) => {
+            const opt = document.createElement('option');
+            opt.value = value;
+            opt.textContent = label;
+            select.appendChild(opt);
+        });
+        return select;
+    }
+
+    static buildDateInput() {
+        const input = document.createElement('input');
+        input.type = 'date';
+        input.classList.add('ba-search-value-date');
+        return input;
+    }
+
+    static buildNumberInput() {
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.classList.add('ba-search-value-number');
+        return input;
+    }
+
+    // Data type select shown under the field picker. Only fields listed in
+    // baSearchData.editableDataTypeFields (currently just Custom Fields) can be changed
+    // by the user; for every other field it just displays the fixed default.
+    static buildDataTypeSelect() {
+        const select = document.createElement('select');
+        select.classList.add('ba-search-datatype-select');
+        Object.entries(baSearchData.dataTypes).forEach(([value, label]) => {
+            const opt = document.createElement('option');
+            opt.value = value;
+            opt.textContent = label;
+            select.appendChild(opt);
+        });
+        select.disabled = true;
+        select.hidden = true;
+        return select;
+    }
+
     // Identifiers to drill into: meta_key names for postmeta, or the taxonomy list for taxonomies.
     static async fetchKeys(field, postType = null) {
         try {
@@ -348,31 +437,78 @@ class FilterGroup {
             placeholder: 'Select field…',
             onLoad: key => FilterGroup.fetchKeys(key, baSearchData.postType)
         });
-        const operatorSelect = FilterGroup.buildOperatorSelect();
-        const valueSelect = FilterGroup.buildValueSelect();
+        const dataTypeSelect = FilterGroup.buildDataTypeSelect();
+        const operatorSelect = FilterGroup.buildOperatorSelect(dataTypeSelect.value);
+
+        const valueWrapper = document.createElement('div');
+        valueWrapper.classList.add('ba-search-value-wrapper');
+        valueWrapper.appendChild(FilterGroup.buildValueSelect());
 
         const fieldWrapper = document.createElement('div');
         fieldWrapper.classList.add('ba-search-field-wrapper');
-        fieldWrapper.append(fieldSelect.el);
+        fieldWrapper.append(fieldSelect.el, dataTypeSelect);
 
+        const refreshDataType = () => {
+            const field = fieldSelect.value;
+            const editable = baSearchData.editableDataTypeFields.includes(field);
+            dataTypeSelect.value = baSearchData.fieldDataTypes[field] ?? 'string';
+            dataTypeSelect.disabled = !editable;
+            dataTypeSelect.hidden = !editable;
+        };
+
+        const refreshOperators = () => {
+            FilterGroup.populateOperatorSelect(operatorSelect, dataTypeSelect.value);
+        };
+
+        // Tracks the in-flight fetch so a slow response for an earlier field/type
+        // selection can't clobber a widget rebuilt by a later one.
+        let refreshToken = 0;
+
+        // Swaps the value widget to match the condition's data type: a native date/number
+        // input for date/number (no API needed), a fixed True/False select for bool, or the
+        // fetched dropdown of existing values for string.
         const refreshValues = async () => {
+            const token = ++refreshToken;
             const needsSubKey = FilterGroup.EXPANDABLE_FIELDS.has(fieldSelect.value) && !fieldSelect.metaKey;
+            const dataType = dataTypeSelect.value;
 
             if(!fieldSelect.value || needsSubKey || FilterGroup.NO_VALUE_OPERATORS.has(operatorSelect.value)) {
-                valueSelect.disabled = true;
-                valueSelect.innerHTML = '';
+                valueWrapper.replaceChildren(FilterGroup.buildValueSelect());
                 return;
             }
 
-            valueSelect.disabled = true;
+            if(dataType === 'bool') {
+                valueWrapper.replaceChildren(FilterGroup.buildBoolSelect());
+                return;
+            }
+
+            if(dataType === 'date') {
+                valueWrapper.replaceChildren(FilterGroup.buildDateInput());
+                return;
+            }
+
+            if(dataType === 'number') {
+                valueWrapper.replaceChildren(FilterGroup.buildNumberInput());
+                return;
+            }
+
+            const valueSelect = FilterGroup.buildValueSelect();
             valueSelect.innerHTML = '<option>Loading…</option>';
+            valueWrapper.replaceChildren(valueSelect);
+
             const items = await FilterGroup.fetchValues(fieldSelect.value, fieldSelect.metaKey, baSearchData.postType);
+            if(token !== refreshToken) return; // a newer selection has since replaced this widget
+
             FilterGroup.populateValueSelect(valueSelect, items);
             valueSelect.disabled = false;
         };
 
+        fieldSelect.el.addEventListener('bas-change', refreshDataType);
+        fieldSelect.el.addEventListener('bas-change', refreshOperators);
         fieldSelect.el.addEventListener('bas-change', refreshValues);
         operatorSelect.addEventListener('change', refreshValues);
+        dataTypeSelect.addEventListener('change', refreshOperators);
+        dataTypeSelect.addEventListener('change', refreshValues);
 
         const removeBtn = FilterGroup.createRemoveButton(condition, this.children, () => {
             fieldSelect.destroy();
@@ -382,7 +518,8 @@ class FilterGroup {
             }
         });
 
-        condition.append(whereLabel, operatorToggle, fieldWrapper, operatorSelect, valueSelect, removeBtn);
+        condition.dataTypeSelect = dataTypeSelect;
+        condition.append(whereLabel, operatorToggle, fieldWrapper, operatorSelect, valueWrapper, removeBtn);
         
         this.childrenEl.appendChild(condition);
         this.children.push(condition);

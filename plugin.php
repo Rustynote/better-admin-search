@@ -11,8 +11,8 @@ namespace BetterAdminSearch;
  *
  * @wordpress-plugin
  * Plugin Name:       Better Admin Search
- * Plugin URI:        https://example.com/plugin-name
- * Description:       Filter wp-admin search by multiple criterias
+ * Plugin URI:        https://github.com/Rustynote/better-admin-search
+ * Description:       Adds advanced filters to the post/page list screens, letting you combine multiple conditions with AND/OR logic to narrow results fast.
  * Version:           0.0.1
  * Requires at least: 5.2
  * Requires PHP:      8.1
@@ -92,34 +92,76 @@ class plugin {
 		}
 		
 		$post_type = $_GET['post_type'] ?? 'post';
-
+		
 		wp_enqueue_style($this->basename.'-style', $this->assets_url.'style.css', [], $this->version);
 		wp_enqueue_script($this->basename.'-script', $this->assets_url.'script.js', [], $this->version);
+		
+		$options = $this->dropdown_options($post_type);
+		
 		wp_localize_script($this->basename.'-script', 'baSearchData', [
 			'filterBoxToggleLabel'       => __('Advanced Filters', 'ba-search'),
 			'filterBoxToggleCancelLabel' => __('Cancel', 'ba-search'),
 			'popupTitle'                 => __('Filters', 'ba-search'),
-			'options'                    => $this->dropdown_options($post_type),
+			'options'                    => wp_list_pluck($options, 'label'),
+			'fieldDataTypes'             => wp_list_pluck($options, 'type'),
 			'postType'                   => $post_type,
 			'apiUrl'                     => get_rest_url(null, 'bas/v1/get_values'),
 			'keysApiUrl'                 => get_rest_url(null, 'bas/v1/get_keys'),
-			'nonce'                      => wp_create_nonce('wp_rest')
+			'nonce'                      => wp_create_nonce('wp_rest'),
+			'dataTypes'                  => $this->data_types(),
+			'editableDataTypeFields'     => ['postmeta'],
 		]);
 	}
-
+	
+	// Dropdown options, each with its label and default data type. Only fields listed in
+	// 'editableDataTypeFields' allow the user to override the default data type.
 	function dropdown_options(string $post_type): array {
 		$options = [
-			'postmeta'    => __('Custom Fields', 'ba-search'),
-			'date_query'  => __('Publish Date', 'ba-search'),
-			'mod_date'    => __('Modification Date', 'ba-search'),
-			'post_author' => __('Post Author', 'ba-search'),
-			'post_status' => __('Post Status', 'ba-search'),
-			'post_name'   => __('Post Slug', 'ba-search'),
-			'post_parent' => __('Post Parent', 'ba-search'),
-			'taxonomies'  => __('Taxonomies', 'ba-search'),
+			'postmeta'    => [
+				'label' => __('Custom Fields', 'ba-search'),
+				'type'  => 'string'
+			],
+			'date_query'  => [
+				'label' => __('Publish Date', 'ba-search'),
+				'type'  => 'date'
+			],
+			'mod_date'    => [
+				'label' => __('Modification Date', 'ba-search'),
+				'type'  => 'date'
+			],
+			'post_author' => [
+				'label' => __('Post Author', 'ba-search'),
+				'type'  => 'number'
+			],
+			'post_status' => [
+				'label' => __('Post Status', 'ba-search'),
+				'type'  => 'string'
+			],
+			'post_name'   => [
+				'label' => __('Post Slug', 'ba-search'),
+				'type'  => 'string'
+			],
+			'post_parent' => [
+				'label' => __('Post Parent', 'ba-search'),
+				'type'  => 'number'
+			],
+			'taxonomies'  => [
+				'label' => __('Taxonomies', 'ba-search'),
+				'type'  => 'string'
+			],
 		];
 		
-		return array_filter($options);
+		return array_filter($options, fn($option) => $option['label'] !== '');
+	}
+	
+	// Selectable data types. Determines how a condition's value is validated/compared.
+	function data_types(): array {
+		return [
+			'string' => __('String', 'ba-search'),
+			'number' => __('Number', 'ba-search'),
+			'bool'   => __('Bool (True / False)', 'ba-search'),
+			'date'   => __('Date', 'ba-search'),
+		];
 	}
 }
 
@@ -131,15 +173,15 @@ function is_rest_request(): bool {
 	if(defined('REST_REQUEST') && REST_REQUEST) {
 		return true;
 	}
-
+	
 	if(!isset($_SERVER['REQUEST_URI'])) {
 		return false;
 	}
-
+	
 	// This runs before the 'parse_request' action, so the REST_REQUEST
 	// constant isn't defined yet even for an actual REST request.
 	$rest_prefix = trailingslashit(rest_get_url_prefix());
-
+	
 	return strpos($_SERVER['REQUEST_URI'], $rest_prefix) !== false;
 }
 
