@@ -59,6 +59,11 @@
     &-value-wrapper {
         display: inline-block;
     }
+    &-value-loading {
+        color: #646970;
+        font-size: 13px;
+        font-style: italic;
+    }
     &-value-date, &-value-number {
         min-width: 140px;
     }
@@ -173,6 +178,89 @@
                 color: #646970;
                 font-size: 12px;
             }
+        }
+    }
+    &-dropdown {
+        $dd: &;
+        position: relative;
+        display: inline-block;
+        &-trigger {
+            min-width: 180px;
+            text-align: left;
+        }
+        &-open #{$dd}-trigger {
+            border-color: var(--wp-admin-theme-color);
+            box-shadow: 0 0 0 1px var(--wp-admin-theme-color);
+        }
+        &-panel {
+            // Specificity ties with the UA stylesheet's [hidden] rule, and author styles win
+            // that tie — so `display` must stay off unless the panel is explicitly shown.
+            display: none;
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            z-index: 100;
+            width: 260px;
+            max-width: 90vw;
+            background: #fff;
+            border: 1px solid var(--wp-admin-theme-color);
+            border-radius: 5px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            padding: 6px;
+            &:not([hidden]) {
+                display: block;
+            }
+        }
+        &-search {
+            box-sizing: border-box;
+            width: 100%;
+            margin-bottom: 6px;
+        }
+        &-list {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+            max-height: 240px;
+            overflow-y: auto;
+        }
+        &-option {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            width: 100%;
+            padding: 6px 8px;
+            border: 0;
+            border-radius: 3px;
+            background: none;
+            text-align: left;
+            font-size: 13px;
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+        button#{$dd}-option:hover {
+            background: var(--wp-admin-theme-color);
+            color: #fff;
+        }
+        &-status {
+            margin: 0;
+            padding: 8px;
+            color: #646970;
+            font-size: 13px;
+            font-style: italic;
+            list-style: none;
+        }
+        &-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px solid #dcdcde;
+        }
+        &-footer-count {
+            color: #646970;
+            font-size: 12px;
         }
     }
 }

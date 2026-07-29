@@ -131,7 +131,7 @@ class plugin {
 			],
 			'post_author' => [
 				'label' => __('Post Author', 'ba-search'),
-				'type'  => 'number'
+				'type'  => 'string'
 			],
 			'post_status' => [
 				'label' => __('Post Status', 'ba-search'),

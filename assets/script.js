@@ -181,6 +181,231 @@ class TwoColumnSelect {
     }
 }
 
+// Single-column searchable dropdown. Single-select mode picks and closes immediately, like a
+// native <select>. Multiple-select mode shows a checkbox per option plus an Apply button in the
+// footer — checking boxes only stages the selection, nothing is committed (and no 'bas-change'
+// fires) until Apply is clicked or another option is picked; closing the panel any other way
+// (outside click, Escape, re-toggling the trigger) discards the staged changes.
+//
+// Two ways to feed it options, chosen by which one is passed in:
+//  - `options`: a fixed array of {value, label} — searching filters it in-browser.
+//  - `onSearch(query)`: an async loader called (debounced) on open and on every keystroke —
+//    used when the full option set is too large to fetch up front (e.g. post authors).
+class SearchableDropdown {
+    static SEARCH_DEBOUNCE_MS = 300;
+
+    constructor({
+        options = null,
+        onSearch = null,
+        multiple = false,
+        placeholder = 'Select…',
+        searchPlaceholder = 'Search…',
+        applyLabel = 'Apply',
+        value = null,
+    }) {
+        this.multiple = multiple;
+        this.onSearch = onSearch;
+        this.options = options ?? [];
+        this.placeholder = placeholder;
+        this.value = multiple ? [...(value ?? [])] : (value ?? null);
+        this.pending = new Set(this.multiple ? this.value : []);
+
+        // Remembers the label for every value we've ever rendered, since a value picked under
+        // one search term may no longer be in the list once the user searches something else.
+        this.labelsByValue = new Map();
+
+        this.searchToken = 0;
+        this.searchTimer = null;
+
+        this.el = document.createElement('div');
+        this.el.classList.add('ba-search-dropdown');
+
+        this.trigger = document.createElement('button');
+        this.trigger.type = 'button';
+        this.trigger.classList.add('ba-search-dropdown-trigger', 'button');
+
+        this.panel = document.createElement('div');
+        this.panel.classList.add('ba-search-dropdown-panel');
+        this.panel.hidden = true;
+
+        this.search = document.createElement('input');
+        this.search.type = 'search';
+        this.search.classList.add('ba-search-dropdown-search');
+        this.search.placeholder = searchPlaceholder;
+
+        this.list = document.createElement('ul');
+        this.list.classList.add('ba-search-dropdown-list');
+
+        this.panel.append(this.search, this.list);
+
+        if(this.multiple) {
+            this.selectedCount = document.createElement('span');
+            this.selectedCount.classList.add('ba-search-dropdown-footer-count');
+
+            this.applyBtn = document.createElement('button');
+            this.applyBtn.type = 'button';
+            this.applyBtn.classList.add('ba-search-dropdown-apply', 'button', 'button-primary');
+            this.applyBtn.textContent = applyLabel;
+            this.applyBtn.addEventListener('click', () => this.apply());
+
+            this.footer = document.createElement('div');
+            this.footer.classList.add('ba-search-dropdown-footer');
+            this.footer.append(this.selectedCount, this.applyBtn);
+            this.panel.append(this.footer);
+        }
+
+        this.el.append(this.trigger, this.panel);
+        this.updateTrigger();
+
+        this.trigger.addEventListener('click', () => this.toggle());
+        this.search.addEventListener('input', () => this.handleSearchInput());
+        this.outsideClickHandler = e => {
+            if(!this.el.contains(e.target)) this.close();
+        };
+        document.addEventListener('click', this.outsideClickHandler);
+        this.el.addEventListener('keydown', e => {
+            if(e.key === 'Escape') this.close();
+        });
+    }
+
+    handleSearchInput() {
+        const query = this.search.value.trim();
+
+        if(!this.onSearch) {
+            const filtered = query
+                ? this.options.filter(({label}) => label.toLowerCase().includes(query.toLowerCase()))
+                : this.options;
+            this.renderList(filtered);
+            return;
+        }
+
+        clearTimeout(this.searchTimer);
+        this.searchTimer = setTimeout(() => this.runSearch(query), SearchableDropdown.SEARCH_DEBOUNCE_MS);
+    }
+
+    async runSearch(query) {
+        const token = ++this.searchToken;
+        this.list.innerHTML = '<li class="ba-search-dropdown-status">Searching…</li>';
+
+        const items = await this.onSearch(query) ?? [];
+        if(token !== this.searchToken) return; // a newer keystroke has since superseded this request
+
+        this.renderList(items);
+    }
+
+    renderList(items) {
+        items.forEach(({value, label}) => this.labelsByValue.set(value, label));
+
+        this.list.innerHTML = '';
+
+        if(!items.length) {
+            this.list.innerHTML = '<li class="ba-search-dropdown-status">No results</li>';
+            return;
+        }
+
+        items.forEach(({value, label}) => {
+            const li = document.createElement('li');
+
+            if(this.multiple) {
+                const row = document.createElement('label');
+                row.classList.add('ba-search-dropdown-option');
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = this.pending.has(value);
+                checkbox.addEventListener('change', () => {
+                    if(checkbox.checked) this.pending.add(value); else this.pending.delete(value);
+                    this.updateSelectedCount();
+                });
+
+                const text = document.createElement('span');
+                text.textContent = label;
+
+                row.append(checkbox, text);
+                li.appendChild(row);
+            } else {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.classList.add('ba-search-dropdown-option');
+                btn.textContent = label;
+                btn.addEventListener('click', () => this.select(value, label));
+                li.appendChild(btn);
+            }
+
+            this.list.appendChild(li);
+        });
+    }
+
+    select(value, label) {
+        this.value = value;
+        this.labelsByValue.set(value, label);
+        this.updateTrigger();
+        this.close();
+        this.el.dispatchEvent(new CustomEvent('bas-change', {detail: {value}}));
+    }
+
+    apply() {
+        this.value = [...this.pending];
+        this.updateTrigger();
+        this.close();
+        this.el.dispatchEvent(new CustomEvent('bas-change', {detail: {value: this.value}}));
+    }
+
+    updateSelectedCount() {
+        if(this.selectedCount) this.selectedCount.textContent = `${this.pending.size} selected`;
+    }
+
+    updateTrigger() {
+        if(!this.multiple) {
+            this.trigger.textContent = this.value !== null
+                ? (this.labelsByValue.get(this.value) ?? this.value)
+                : this.placeholder;
+            return;
+        }
+
+        if(!this.value.length) {
+            this.trigger.textContent = this.placeholder;
+        } else if(this.value.length === 1) {
+            this.trigger.textContent = this.labelsByValue.get(this.value[0]) ?? this.value[0];
+        } else {
+            this.trigger.textContent = `${this.value.length} selected`;
+        }
+    }
+
+    toggle() {
+        if(this.panel.hidden) this.open(); else this.close();
+    }
+
+    open() {
+        this.panel.hidden = false;
+        this.el.classList.add('ba-search-dropdown-open');
+        this.search.value = '';
+
+        if(this.multiple) {
+            this.pending = new Set(this.value);
+            this.updateSelectedCount();
+        }
+
+        if(this.onSearch) {
+            this.runSearch('');
+        } else {
+            this.renderList(this.options);
+        }
+
+        this.search.focus();
+    }
+
+    close() {
+        this.panel.hidden = true;
+        this.el.classList.remove('ba-search-dropdown-open');
+    }
+
+    destroy() {
+        clearTimeout(this.searchTimer);
+        document.removeEventListener('click', this.outsideClickHandler);
+    }
+}
+
 class FilterGroup {
     // Available operators per data type — the value select repopulates from this whenever
     // the condition's data type changes.
@@ -220,6 +445,15 @@ class FilterGroup {
         ],
     };
 
+    // Fields whose operator list is fixed regardless of data type, because the field only
+    // ever supports an exact match (e.g. picking one of a fixed set of existing values).
+    static FIELD_OPERATOR_OVERRIDES = {
+        post_author: [['is', 'Is'], ['is_not', 'Is Not']],
+        post_status: [['is', 'Is'], ['is_not', 'Is Not']],
+        post_name:   [['is', 'Is'], ['is_not', 'Is Not']],
+        post_parent: [['is', 'Is'], ['is_not', 'Is Not']],
+    };
+
     static NO_VALUE_OPERATORS = new Set(['is_set', 'not_set']);
 
     // Operators that need a "from" and "to" value instead of a single one.
@@ -238,6 +472,16 @@ class FilterGroup {
 
     // Fields that need a sub-pick (which meta key / which taxonomy) before a value can load.
     static EXPANDABLE_FIELDS = new Set(['postmeta', 'taxonomies']);
+
+    // Fields with a small, bounded set of values: fetched once and filtered client-side rather
+    // than hitting the API on every keystroke. Everything else searches server-side, since its
+    // full value set (post authors, taxonomy terms, custom field values) can be too large to
+    // fetch up front.
+    static LOCAL_SEARCH_FIELDS = new Set(['post_status']);
+
+    // Fields whose value is actually another post: instead of the plain number input its data
+    // type would otherwise get, this searches existing posts of the same post type by title.
+    static POST_PICKER_FIELDS = new Set(['post_parent']);
 
     static BOOL_OPTIONS = [
         ['1', 'True'],
@@ -322,11 +566,13 @@ class FilterGroup {
     }
 
     // Repopulates an operator select for a given data type, keeping the current selection
-    // if it's still a valid choice (e.g. "Between" exists for both Number and Date).
-    static populateOperatorSelect(select, dataType) {
+    // if it's still a valid choice (e.g. "Between" exists for both Number and Date). A field
+    // listed in FIELD_OPERATOR_OVERRIDES gets its fixed operator list regardless of data type.
+    static populateOperatorSelect(select, dataType, field = null) {
         const previousValue = select.value;
         select.innerHTML = '';
-        (FilterGroup.OPERATORS[dataType] ?? FilterGroup.OPERATORS.string).forEach(([value, label]) => {
+        const operators = FilterGroup.FIELD_OPERATOR_OVERRIDES[field] ?? FilterGroup.OPERATORS[dataType] ?? FilterGroup.OPERATORS.string;
+        operators.forEach(([value, label]) => {
             const opt = document.createElement('option');
             opt.value = value;
             opt.textContent = label;
@@ -451,11 +697,14 @@ class FilterGroup {
     }
 
     // Values for an already-chosen identifier: meta values for a meta_key, or terms of a taxonomy.
-    static async fetchValues(field, thing = null, postType = null) {
+    // `search` narrows the result set server-side, for fields whose full value set is too large
+    // to fetch up front — see LOCAL_SEARCH_FIELDS for the fields that skip this.
+    static async fetchValues(field, thing = null, postType = null, search = '') {
         try {
             const params = new URLSearchParams({field});
             if(thing) params.set('thing', thing);
             if(postType) params.set('post_type', postType);
+            if(search) params.set('search', search);
 
             const response = await fetch(`${baSearchData.apiUrl}?${params}`, {
                 headers: {'X-WP-Nonce': baSearchData.nonce},
@@ -466,17 +715,7 @@ class FilterGroup {
             return [];
         }
     }
-    
-    static populateValueSelect(select, items) {
-        select.innerHTML = '';
-        items.forEach(({value, label}) => {
-            const opt = document.createElement('option');
-            opt.value = value;
-            opt.textContent = label;
-            select.appendChild(opt);
-        });
-    }
-    
+
     addCondition() {
         const condition = document.createElement('div');
         condition.classList.add('ba-search-block', 'ba-search-condition');
@@ -517,61 +756,100 @@ class FilterGroup {
         };
 
         const refreshOperators = () => {
-            FilterGroup.populateOperatorSelect(operatorSelect, dataTypeSelect.value);
+            FilterGroup.populateOperatorSelect(operatorSelect, dataTypeSelect.value, fieldSelect.value);
         };
 
         // Tracks the in-flight fetch so a slow response for an earlier field/type
         // selection can't clobber a widget rebuilt by a later one.
         let refreshToken = 0;
 
+        // The value widget is sometimes a SearchableDropdown, which holds a document-level click
+        // listener that must be torn down before it's replaced — plain inputs/selects need no
+        // such cleanup, so this is a no-op for those.
+        let valueDropdown = null;
+        const setValueWidget = node => {
+            valueDropdown?.destroy();
+            valueDropdown = null;
+            valueWrapper.replaceChildren(node);
+        };
+
         // Swaps the value widget to match the condition's data type and operator: an amount/unit
         // pair for relative date operators, a "from"/"to" pair for range operators, a native
         // date/number input for date/number (no API needed), a fixed True/False select for bool,
-        // or the fetched dropdown of existing values for string.
+        // a searchable post picker for POST_PICKER_FIELDS regardless of data type, or — for
+        // string — a SearchableDropdown of existing values. Fields in LOCAL_SEARCH_FIELDS are
+        // fetched once and filtered client-side; everything else searches the API as the user
+        // types, since its full value set can be large.
         const refreshValues = async () => {
             const token = ++refreshToken;
-            const needsSubKey = FilterGroup.EXPANDABLE_FIELDS.has(fieldSelect.value) && !fieldSelect.metaKey;
+            const field = fieldSelect.value;
+            const needsSubKey = FilterGroup.EXPANDABLE_FIELDS.has(field) && !fieldSelect.metaKey;
             const dataType = dataTypeSelect.value;
+            const operator = operatorSelect.value;
+            const metaKey = fieldSelect.metaKey;
+            const placeholder = 'Select value…';
 
-            if(!fieldSelect.value || needsSubKey || FilterGroup.NO_VALUE_OPERATORS.has(operatorSelect.value)) {
-                valueWrapper.replaceChildren(FilterGroup.buildValueSelect());
+            if(!field || needsSubKey || FilterGroup.NO_VALUE_OPERATORS.has(operator)) {
+                setValueWidget(FilterGroup.buildValueSelect());
                 return;
             }
 
-            if(FilterGroup.RELATIVE_DATE_OPERATORS.has(operatorSelect.value)) {
-                valueWrapper.replaceChildren(FilterGroup.buildRelativeDateInput());
+            if(FilterGroup.RELATIVE_DATE_OPERATORS.has(operator)) {
+                setValueWidget(FilterGroup.buildRelativeDateInput());
                 return;
             }
 
-            if(FilterGroup.RANGE_OPERATORS.has(operatorSelect.value)) {
-                valueWrapper.replaceChildren(FilterGroup.buildRangeInput(dataType));
+            if(FilterGroup.RANGE_OPERATORS.has(operator)) {
+                setValueWidget(FilterGroup.buildRangeInput(dataType));
+                return;
+            }
+
+            if(FilterGroup.POST_PICKER_FIELDS.has(field)) {
+                const dropdown = new SearchableDropdown({
+                    onSearch: query => FilterGroup.fetchValues(field, metaKey, baSearchData.postType, query),
+                    placeholder,
+                });
+                setValueWidget(dropdown.el);
+                valueDropdown = dropdown;
                 return;
             }
 
             if(dataType === 'bool') {
-                valueWrapper.replaceChildren(FilterGroup.buildBoolSelect());
+                setValueWidget(FilterGroup.buildBoolSelect());
                 return;
             }
 
             if(dataType === 'date') {
-                valueWrapper.replaceChildren(FilterGroup.buildDateInput());
+                setValueWidget(FilterGroup.buildDateInput());
                 return;
             }
 
             if(dataType === 'number') {
-                valueWrapper.replaceChildren(FilterGroup.buildNumberInput());
+                setValueWidget(FilterGroup.buildNumberInput());
                 return;
             }
 
-            const valueSelect = FilterGroup.buildValueSelect();
-            valueSelect.innerHTML = '<option>Loading…</option>';
-            valueWrapper.replaceChildren(valueSelect);
+            if(FilterGroup.LOCAL_SEARCH_FIELDS.has(field)) {
+                const loading = document.createElement('span');
+                loading.classList.add('ba-search-value-loading');
+                loading.textContent = 'Loading…';
+                setValueWidget(loading);
 
-            const items = await FilterGroup.fetchValues(fieldSelect.value, fieldSelect.metaKey, baSearchData.postType);
-            if(token !== refreshToken) return; // a newer selection has since replaced this widget
+                const items = await FilterGroup.fetchValues(field, metaKey, baSearchData.postType);
+                if(token !== refreshToken) return; // a newer selection has since replaced this widget
 
-            FilterGroup.populateValueSelect(valueSelect, items);
-            valueSelect.disabled = false;
+                const dropdown = new SearchableDropdown({options: items, placeholder});
+                setValueWidget(dropdown.el);
+                valueDropdown = dropdown;
+                return;
+            }
+
+            const dropdown = new SearchableDropdown({
+                onSearch: query => FilterGroup.fetchValues(field, metaKey, baSearchData.postType, query),
+                placeholder,
+            });
+            setValueWidget(dropdown.el);
+            valueDropdown = dropdown;
         };
 
         fieldSelect.el.addEventListener('bas-change', refreshDataType);
@@ -583,6 +861,7 @@ class FilterGroup {
 
         const removeBtn = FilterGroup.createRemoveButton(condition, this.children, () => {
             fieldSelect.destroy();
+            valueDropdown?.destroy();
             this.updateConditionToggles();
             if(!this.isRoot && this.children.length === 0) {
                 this.onEmpty?.();
