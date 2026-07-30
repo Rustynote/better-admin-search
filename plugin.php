@@ -102,8 +102,7 @@ class plugin {
 			'filterBoxToggleLabel'       => __('Advanced Filters', 'ba-search'),
 			'filterBoxToggleCancelLabel' => __('Cancel', 'ba-search'),
 			'popupTitle'                 => __('Filters', 'ba-search'),
-			'options'                    => wp_list_pluck($options, 'label'),
-			'fieldDataTypes'             => wp_list_pluck($options, 'type'),
+			'fieldOptions'               => $options,
 			'postType'                   => $post_type,
 			'apiUrl'                     => get_rest_url(null, 'bas/v1/get_values'),
 			'keysApiUrl'                 => get_rest_url(null, 'bas/v1/get_keys'),
@@ -115,11 +114,24 @@ class plugin {
 	
 	// Dropdown options, each with its label and default data type. Only fields listed in
 	// 'editableDataTypeFields' allow the user to override the default data type.
+	//
+	// Optional per-field flags, consumed by the matching JS FilterGroup static (see script.js):
+	// - operatorOverride: fixed [value, label] operator pairs, used regardless of data type,
+	//   for fields that only ever support an exact match.
+	// - expandable: needs a sub-pick (which meta key / which taxonomy) before a value can load.
+	// - localSearch: has a small, bounded set of values, fetched once and filtered client-side.
+	// - postPicker: value is actually another post, searched by title instead of the plain input
+	//   its data type would otherwise get.
+	//
+	// Filterable via 'ba_search_dropdown_options' so themes/plugins can add or adjust fields.
 	function dropdown_options(string $post_type): array {
+		$is_operator = [['is', __('Is', 'ba-search')], ['is_not', __('Is Not', 'ba-search')]];
+
 		$options = [
 			'postmeta'    => [
-				'label' => __('Custom Fields', 'ba-search'),
-				'type'  => 'string'
+				'label'      => __('Custom Fields', 'ba-search'),
+				'type'       => 'string',
+				'expandable' => true,
 			],
 			'date_query'  => [
 				'label' => __('Publish Date', 'ba-search'),
@@ -130,28 +142,37 @@ class plugin {
 				'type'  => 'date'
 			],
 			'post_author' => [
-				'label' => __('Post Author', 'ba-search'),
-				'type'  => 'string'
+				'label'            => __('Post Author', 'ba-search'),
+				'type'             => 'string',
+				'operatorOverride' => $is_operator,
 			],
 			'post_status' => [
-				'label' => __('Post Status', 'ba-search'),
-				'type'  => 'string'
+				'label'            => __('Post Status', 'ba-search'),
+				'type'             => 'string',
+				'operatorOverride' => $is_operator,
+				'localSearch'      => true,
 			],
 			'post_name'   => [
-				'label' => __('Post Slug', 'ba-search'),
-				'type'  => 'string'
+				'label'            => __('Post Slug', 'ba-search'),
+				'type'             => 'string',
+				'operatorOverride' => $is_operator,
 			],
 			'post_parent' => [
-				'label' => __('Post Parent', 'ba-search'),
-				'type'  => 'number'
+				'label'            => __('Post Parent', 'ba-search'),
+				'type'             => 'number',
+				'operatorOverride' => $is_operator,
+				'postPicker'       => true,
 			],
 			'taxonomies'  => [
-				'label' => __('Taxonomies', 'ba-search'),
-				'type'  => 'string'
+				'label'      => __('Taxonomies', 'ba-search'),
+				'type'       => 'string',
+				'expandable' => true,
 			],
 		];
-		
-		return array_filter($options, fn($option) => $option['label'] !== '');
+
+		$options = array_filter($options, fn($option) => $option['label'] !== '');
+
+		return apply_filters('ba_search_dropdown_options', $options, $post_type);
 	}
 	
 	// Selectable data types. Determines how a condition's value is validated/compared.

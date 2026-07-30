@@ -445,14 +445,28 @@ class FilterGroup {
         ],
     };
 
+    // Per-field data — label, default data type, and the optional flags read below — keyed by
+    // field name. Comes from BetterAdminSearch\plugin::dropdown_options() via the
+    // 'ba_search_dropdown_options' filter, so themes/plugins adding fields there are picked up
+    // here automatically.
+    static get FIELD_OPTIONS() {
+        return baSearchData.fieldOptions;
+    }
+
+    // Field names whose FIELD_OPTIONS entry has a truthy value for `prop`.
+    static fieldsWhere(prop) {
+        return new Set(Object.entries(FilterGroup.FIELD_OPTIONS)
+            .filter(([, option]) => option[prop])
+            .map(([field]) => field));
+    }
+
     // Fields whose operator list is fixed regardless of data type, because the field only
     // ever supports an exact match (e.g. picking one of a fixed set of existing values).
-    static FIELD_OPERATOR_OVERRIDES = {
-        post_author: [['is', 'Is'], ['is_not', 'Is Not']],
-        post_status: [['is', 'Is'], ['is_not', 'Is Not']],
-        post_name:   [['is', 'Is'], ['is_not', 'Is Not']],
-        post_parent: [['is', 'Is'], ['is_not', 'Is Not']],
-    };
+    static get FIELD_OPERATOR_OVERRIDES() {
+        return Object.fromEntries(Object.entries(FilterGroup.FIELD_OPTIONS)
+            .filter(([, option]) => option.operatorOverride)
+            .map(([field, option]) => [field, option.operatorOverride]));
+    }
 
     static NO_VALUE_OPERATORS = new Set(['is_set', 'not_set']);
 
@@ -471,17 +485,23 @@ class FilterGroup {
     ];
 
     // Fields that need a sub-pick (which meta key / which taxonomy) before a value can load.
-    static EXPANDABLE_FIELDS = new Set(['postmeta', 'taxonomies']);
+    static get EXPANDABLE_FIELDS() {
+        return FilterGroup.fieldsWhere('expandable');
+    }
 
     // Fields with a small, bounded set of values: fetched once and filtered client-side rather
     // than hitting the API on every keystroke. Everything else searches server-side, since its
     // full value set (post authors, taxonomy terms, custom field values) can be too large to
     // fetch up front.
-    static LOCAL_SEARCH_FIELDS = new Set(['post_status']);
+    static get LOCAL_SEARCH_FIELDS() {
+        return FilterGroup.fieldsWhere('localSearch');
+    }
 
     // Fields whose value is actually another post: instead of the plain number input its data
     // type would otherwise get, this searches existing posts of the same post type by title.
-    static POST_PICKER_FIELDS = new Set(['post_parent']);
+    static get POST_PICKER_FIELDS() {
+        return FilterGroup.fieldsWhere('postPicker');
+    }
 
     static BOOL_OPTIONS = [
         ['1', 'True'],
@@ -731,7 +751,8 @@ class FilterGroup {
         condition.operatorToggle = operatorToggle;
         
         const fieldSelect = new TwoColumnSelect({
-            options: baSearchData.options,
+            options: Object.fromEntries(Object.entries(FilterGroup.FIELD_OPTIONS)
+                .map(([field, option]) => [field, option.label])),
             expandableKeys: FilterGroup.EXPANDABLE_FIELDS,
             placeholder: 'Select field…',
             onLoad: key => FilterGroup.fetchKeys(key, baSearchData.postType)
@@ -750,7 +771,7 @@ class FilterGroup {
         const refreshDataType = () => {
             const field = fieldSelect.value;
             const editable = baSearchData.editableDataTypeFields.includes(field);
-            dataTypeSelect.value = baSearchData.fieldDataTypes[field] ?? 'string';
+            dataTypeSelect.value = FilterGroup.FIELD_OPTIONS[field]?.type ?? 'string';
             dataTypeSelect.disabled = !editable;
             dataTypeSelect.hidden = !editable;
         };
