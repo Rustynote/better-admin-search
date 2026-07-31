@@ -238,6 +238,21 @@
   font-style: italic;
   list-style: none;
 }
+.ba-search-dropdown-status-error {
+  color: #d63638;
+  font-style: normal;
+}
+.ba-search-value-error {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ba-search-value-error-message {
+  margin: 0;
+  color: #d63638;
+  font-size: 12px;
+  max-width: 260px;
+}
 .ba-search-dropdown-footer {
   display: flex;
   align-items: center;

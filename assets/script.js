@@ -287,10 +287,37 @@ class SearchableDropdown {
         const token = ++this.searchToken;
         this.list.innerHTML = '<li class="ba-search-dropdown-status">Searching…</li>';
 
-        const items = await this.onSearch(query) ?? [];
-        if(token !== this.searchToken) return; // a newer keystroke has since superseded this request
+        try {
+            const items = await this.onSearch(query) ?? [];
+            if(token !== this.searchToken) return; // a newer keystroke has since superseded this request
+            this.renderList(items);
+        } catch(err) {
+            if(token !== this.searchToken) return; // a newer keystroke has since superseded this request
+            this.renderSearchError(query, err.message);
+        }
+    }
 
-        this.renderList(items);
+    // Shown when onSearch rejects (e.g. the server-side query timeout in includes/helpers.php)
+    // instead of resolving with results — explains why, and, in single-select mode, offers to
+    // use whatever the user has already typed as the value directly.
+    renderSearchError(query, message) {
+        this.list.innerHTML = '';
+
+        const status = document.createElement('li');
+        status.classList.add('ba-search-dropdown-status', 'ba-search-dropdown-status-error');
+        status.textContent = message;
+        this.list.appendChild(status);
+
+        if(!this.multiple && query) {
+            const li = document.createElement('li');
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.classList.add('ba-search-dropdown-option');
+            btn.textContent = `Use "${query}"`;
+            btn.addEventListener('click', () => this.select(query, query));
+            li.appendChild(btn);
+            this.list.appendChild(li);
+        }
     }
 
     renderList(items) {
@@ -637,6 +664,28 @@ class FilterGroup {
         return input;
     }
 
+    static buildTextInput() {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.classList.add('ba-search-value-text');
+        return input;
+    }
+
+    // Shown in place of the normal value widget when a server-side value search errors out
+    // (e.g. the query timeout in includes/helpers.php) — surfaces why, and lets the user type
+    // the value directly instead of picking it from a list the server couldn't produce in time.
+    static buildValueErrorFallback(message) {
+        const wrapper = document.createElement('div');
+        wrapper.classList.add('ba-search-value-error');
+
+        const text = document.createElement('p');
+        text.classList.add('ba-search-value-error-message');
+        text.textContent = message;
+
+        wrapper.append(text, FilterGroup.buildTextInput());
+        return wrapper;
+    }
+
     // "From" and "to" inputs for Between / Not Between, matching the condition's data type.
     static buildRangeInput(dataType) {
         const wrapper = document.createElement('div');
@@ -718,22 +767,38 @@ class FilterGroup {
 
     // Values for an already-chosen identifier: meta values for a meta_key, or terms of a taxonomy.
     // `search` narrows the result set server-side, for fields whose full value set is too large
-    // to fetch up front — see LOCAL_SEARCH_FIELDS for the fields that skip this.
+    // to fetch up front — see LOCAL_SEARCH_FIELDS for the fields that skip this. Several of the
+    // columns searched here (meta_value, post_title, display_name) have no index, so the server
+    // enforces a 10s query timeout (see includes/helpers.php); a 504 response means it was hit,
+    // and is thrown here as an Error rather than swallowed, so callers can offer the user a way
+    // to enter the value directly instead of quietly showing an empty result list.
     static async fetchValues(field, thing = null, postType = null, search = '') {
+        let response;
         try {
             const params = new URLSearchParams({field});
             if(thing) params.set('thing', thing);
             if(postType) params.set('post_type', postType);
             if(search) params.set('search', search);
 
-            const response = await fetch(`${baSearchData.apiUrl}?${params}`, {
+            response = await fetch(`${baSearchData.apiUrl}?${params}`, {
                 headers: {'X-WP-Nonce': baSearchData.nonce},
             });
-            if(!response.ok) return [];
-            return await response.json();
         } catch {
             return [];
         }
+
+        if(response.status === 504) {
+            let message = 'This search took too long to run. Enter the value directly instead.';
+            try {
+                message = (await response.json())?.message ?? message;
+            } catch {
+                // Use the fallback message above.
+            }
+            throw new Error(message);
+        }
+
+        if(!response.ok) return [];
+        return await response.json();
     }
 
     addCondition() {
@@ -856,7 +921,14 @@ class FilterGroup {
                 loading.textContent = 'Loading…';
                 setValueWidget(loading);
 
-                const items = await FilterGroup.fetchValues(field, metaKey, baSearchData.postType);
+                let items;
+                try {
+                    items = await FilterGroup.fetchValues(field, metaKey, baSearchData.postType);
+                } catch(err) {
+                    if(token !== refreshToken) return; // a newer selection has since replaced this widget
+                    setValueWidget(FilterGroup.buildValueErrorFallback(err.message));
+                    return;
+                }
                 if(token !== refreshToken) return; // a newer selection has since replaced this widget
 
                 const dropdown = new SearchableDropdown({options: items, placeholder});

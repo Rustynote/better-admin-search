@@ -119,12 +119,19 @@ function get_values(\WP_REST_Request $request) {
 	return [];
 }
 
-function get_postmeta_values(string $meta_key, string $search = ''): array {
+function get_postmeta_values(string $meta_key, string $search = '') {
 	global $wpdb;
 
 	$like = '%'.$wpdb->esc_like($search).'%';
-	$sql  = "SELECT DISTINCT meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value LIKE %s ORDER BY meta_value ASC LIMIT 50";
-	$values = $wpdb->get_col($wpdb->prepare($sql, $meta_key, $like));
+	$sql  = $wpdb->prepare(
+		"SELECT DISTINCT meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value LIKE %s ORDER BY meta_value ASC LIMIT 50",
+		$meta_key, $like
+	);
+	$values = \BetterAdminSearch\Helpers\query_with_timeout($sql);
+
+	if($values === null) {
+		return \BetterAdminSearch\Helpers\is_query_timeout() ? \BetterAdminSearch\Helpers\query_timeout_error() : [];
+	}
 
 	return array_map(fn($value) => [
 		'value' => $value,
@@ -132,12 +139,19 @@ function get_postmeta_values(string $meta_key, string $search = ''): array {
 	], $values);
 }
 
-function get_post_slugs(string $post_type, string $search = ''): array {
+function get_post_slugs(string $post_type, string $search = '') {
 	global $wpdb;
 
 	$like = '%'.$wpdb->esc_like($search).'%';
-	$sql  = "SELECT DISTINCT post_name FROM {$wpdb->posts} WHERE post_type = %s AND post_name LIKE %s ORDER BY post_name ASC LIMIT 50";
-	$values = $wpdb->get_col($wpdb->prepare($sql, $post_type, $like));
+	$sql  = $wpdb->prepare(
+		"SELECT DISTINCT post_name FROM {$wpdb->posts} WHERE post_type = %s AND post_name LIKE %s ORDER BY post_name ASC LIMIT 50",
+		$post_type, $like
+	);
+	$values = \BetterAdminSearch\Helpers\query_with_timeout($sql);
+
+	if($values === null) {
+		return \BetterAdminSearch\Helpers\is_query_timeout() ? \BetterAdminSearch\Helpers\query_timeout_error() : [];
+	}
 
 	return array_map(fn($value) => [
 		'value' => $value,
@@ -145,10 +159,15 @@ function get_post_slugs(string $post_type, string $search = ''): array {
 	], $values);
 }
 
-function get_post_statuses(string $post_type): array {
+function get_post_statuses(string $post_type) {
 	global $wpdb;
 
-	$values = $wpdb->get_col($wpdb->prepare("SELECT DISTINCT post_status FROM {$wpdb->posts} WHERE post_type = %s ORDER BY post_status ASC LIMIT 200", $post_type));
+	$sql    = $wpdb->prepare("SELECT DISTINCT post_status FROM {$wpdb->posts} WHERE post_type = %s ORDER BY post_status ASC LIMIT 200", $post_type);
+	$values = \BetterAdminSearch\Helpers\query_with_timeout($sql);
+
+	if($values === null) {
+		return \BetterAdminSearch\Helpers\is_query_timeout() ? \BetterAdminSearch\Helpers\query_timeout_error() : [];
+	}
 
 	return array_map(fn($value) => [
 		'value' => $value,
@@ -156,15 +175,22 @@ function get_post_statuses(string $post_type): array {
 	], $values);
 }
 
-function get_post_authors(string $post_type, string $search = ''): array {
+function get_post_authors(string $post_type, string $search = '') {
 	global $wpdb;
 
 	$like = '%'.$wpdb->esc_like($search).'%';
-	$sql  = "SELECT DISTINCT u.ID, u.display_name FROM {$wpdb->users} u
-	         INNER JOIN {$wpdb->posts} p ON p.post_author = u.ID
-	         WHERE p.post_type = %s AND u.display_name LIKE %s
-	         ORDER BY u.display_name ASC LIMIT 50";
-	$rows = $wpdb->get_results($wpdb->prepare($sql, $post_type, $like));
+	$sql  = $wpdb->prepare(
+		"SELECT DISTINCT u.ID, u.display_name FROM {$wpdb->users} u
+		 INNER JOIN {$wpdb->posts} p ON p.post_author = u.ID
+		 WHERE p.post_type = %s AND u.display_name LIKE %s
+		 ORDER BY u.display_name ASC LIMIT 50",
+		$post_type, $like
+	);
+	$rows = \BetterAdminSearch\Helpers\query_with_timeout($sql, 'get_results');
+
+	if($rows === null) {
+		return \BetterAdminSearch\Helpers\is_query_timeout() ? \BetterAdminSearch\Helpers\query_timeout_error() : [];
+	}
 
 	return array_map(fn($row) => [
 		'value' => (string) $row->ID,
@@ -173,14 +199,21 @@ function get_post_authors(string $post_type, string $search = ''): array {
 }
 
 // Candidate parent posts, searched by title within the same post type.
-function get_post_parents(string $post_type, string $search = ''): array {
+function get_post_parents(string $post_type, string $search = '') {
 	global $wpdb;
 
 	$like = '%'.$wpdb->esc_like($search).'%';
-	$sql  = "SELECT ID, post_title FROM {$wpdb->posts}
-	         WHERE post_type = %s AND post_status NOT IN ('trash', 'auto-draft') AND post_title LIKE %s
-	         ORDER BY post_title ASC LIMIT 50";
-	$rows = $wpdb->get_results($wpdb->prepare($sql, $post_type, $like));
+	$sql  = $wpdb->prepare(
+		"SELECT ID, post_title FROM {$wpdb->posts}
+		 WHERE post_type = %s AND post_status NOT IN ('trash', 'auto-draft') AND post_title LIKE %s
+		 ORDER BY post_title ASC LIMIT 50",
+		$post_type, $like
+	);
+	$rows = \BetterAdminSearch\Helpers\query_with_timeout($sql, 'get_results');
+
+	if($rows === null) {
+		return \BetterAdminSearch\Helpers\is_query_timeout() ? \BetterAdminSearch\Helpers\query_timeout_error() : [];
+	}
 
 	return array_map(fn($row) => [
 		'value' => (string) $row->ID,
