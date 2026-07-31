@@ -3,13 +3,9 @@
 namespace BetterAdminSearch;
 
 /**
+ * Plugin bootstrap: registers the admin hook, builds the filterable field list, and localizes
+ * it to script.js so the frontend can render the field/value pickers described there.
  *
- * @package           BetterAdminSearch
- * @author            Jaroslav Suhanek
- * @copyright         2026 Jaroslav Suhanek PR DevSolutions
- * @license           GPL-3.0
- *
- * @wordpress-plugin
  * Plugin Name:       Better Admin Search
  * Plugin URI:        https://github.com/Rustynote/better-admin-search
  * Description:       Adds advanced filters to the post/page list screens, letting you combine multiple conditions with AND/OR logic to narrow results fast.
@@ -23,6 +19,7 @@ namespace BetterAdminSearch;
  * License URI:       http://www.gnu.org/licenses/gpl-3.0.txt
  */
 class plugin {
+	// Populated by vars(), called once from init(). See vars() for what each one holds.
 	private string $version;
 	private string $file;
 	private string $basename;
@@ -34,8 +31,22 @@ class plugin {
 	private string $assets_url;
 	private string $option_name;
 	
+	// Instantiated only via init(); nothing to set up here that vars()/includes()/actions()
+	// don't already handle in a defined order.
 	function __construct() { /* Do nothing */ }
 	
+	/**
+	 * Boots the plugin exactly once, no matter how many times it's called.
+	 *
+	 * Uses a static local rather than a class property for the singleton instance so that
+	 * calling plugin() (the module-level accessor at the bottom of this file) before the
+	 * instance exists is enough to trigger construction — there's no separate "has it been
+	 * initialized?" check to keep in sync.
+	 *
+	 * @return plugin|null The singleton instance. Effectively never null in practice — vars(),
+	 *                      includes(), and actions() don't have a failure path — but typed
+	 *                      nullable to match the constructor's return contract.
+	 */
 	static function init(): ?plugin {
 		static $init = null;
 		
@@ -50,6 +61,13 @@ class plugin {
 		return $init;
 	}
 	
+	/**
+	 * Populates the path/URL/settings properties used throughout the class.
+	 *
+	 * Must run before includes() and actions(), since both rely on paths set up here
+	 * ($includes_dir for the require_once calls, and — indirectly, via admin_enqueue_scripts()
+	 * — $assets_url and $basename for the enqueued style/script).
+	 */
 	function vars(): void {
 		$this->version = '0.0.1';
 		
@@ -73,12 +91,24 @@ class plugin {
 		$this->option_name = 'ba_search_options';
 	}
 	
+	/**
+	 * Loads the plugin's supporting files.
+	 *
+	 * helpers.php's value-lookup functions call into Query\with_timeout() etc. from query.php,
+	 * but since those are plain function definitions (not executed on load), the require order
+	 * below doesn't actually matter — PHP only needs query.php loaded by the time helpers.php's
+	 * functions are called, not by the time they're defined.
+	 */
 	function includes(): void {
 		require_once $this->includes_dir.'helpers.php';
 		require_once $this->includes_dir.'endpoints.php';
 		require_once $this->includes_dir.'query.php';
 	}
 	
+	/**
+	 * Wires up the plugin's WordPress hooks. Currently just the one: enqueueing assets (and
+	 * localizing the field data) on the admin list screens.
+	 */
 	function actions(): void {
 		add_action('admin_enqueue_scripts', [
 			$this,
@@ -86,7 +116,23 @@ class plugin {
 		]);
 	}
 	
-	function admin_enqueue_scripts($hook): void {
+	/**
+	 * Enqueues the plugin's style/script on the post list screen and localizes everything
+	 * script.js needs to render the filter UI — the field list (from dropdown_options()),
+	 * selectable data types, REST endpoint URLs, and the nonce to call them with.
+	 *
+	 * Hooked to 'admin_enqueue_scripts', which fires on every wp-admin page; bails out early
+	 * for everything except edit.php (the post list screen), which is the only place the
+	 * filter UI is rendered.
+	 *
+	 * 'editableDataTypeFields' (which fields let the user override the default data type from
+	 * dropdown_options()) defaults to just 'postmeta', but is filterable via
+	 * 'ba_search_editable_data_type_fields' so a field added through 'ba_search_dropdown_options'
+	 * can opt into the same override behavior.
+	 *
+	 * @param string $hook The current admin page's hook suffix, e.g. 'edit.php' or 'index.php'.
+	 */
+	function admin_enqueue_scripts(string $hook): void {
 		if($hook != 'edit.php') {
 			return;
 		}
@@ -108,25 +154,48 @@ class plugin {
 			'keysApiUrl'                 => get_rest_url(null, 'bas/v1/get_keys'),
 			'nonce'                      => wp_create_nonce('wp_rest'),
 			'dataTypes'                  => $this->data_types(),
-			'editableDataTypeFields'     => ['postmeta'],
+			'editableDataTypeFields'     => apply_filters('ba_search_editable_data_type_fields', ['postmeta']),
 		]);
 	}
 	
-	// Dropdown options, each with its label and default data type. Only fields listed in
-	// 'editableDataTypeFields' allow the user to override the default data type.
-	//
-	// Optional per-field flags, consumed by the matching JS FilterGroup static (see script.js):
-	// - operatorOverride: fixed [value, label] operator pairs, used regardless of data type,
-	//   for fields that only ever support an exact match.
-	// - expandable: needs a sub-pick (which meta key / which taxonomy) before a value can load.
-	// - localSearch: has a small, bounded set of values, fetched once and filtered client-side.
-	// - postPicker: value is actually another post, searched by title instead of the plain input
-	//   its data type would otherwise get.
-	//
-	// Filterable via 'ba_search_dropdown_options' so themes/plugins can add or adjust fields.
+	/**
+	 * The fields selectable in the filter UI's field picker, each with its label and default
+	 * data type. Only fields listed in 'editableDataTypeFields' (see admin_enqueue_scripts(),
+	 * filterable via 'ba_search_editable_data_type_fields') allow the user to override the
+	 * default data type.
+	 *
+	 * Optional per-field flags, consumed by the matching JS FilterGroup static (see script.js):
+	 * - operatorOverride: fixed [value, label] operator pairs, used regardless of data type,
+	 *   for fields that only ever support an exact match.
+	 * - expandable: needs a sub-pick (which meta key / which taxonomy) before a value can load.
+	 * - localSearch: has a small, bounded set of values, fetched once and filtered client-side.
+	 * - postPicker: value is actually another post, searched by title instead of the plain input
+	 *   its data type would otherwise get.
+	 *
+	 * Filterable via 'ba_search_dropdown_options' so themes/plugins can add or adjust fields —
+	 * a field added this way needs matching support in includes/endpoints.php's get_values()
+	 * (via the 'ba_search_get_values' filter) to actually return values for it, and in
+	 * get_keys() if it's marked expandable.
+	 *
+	 * @param string $post_type Post type slug the field list is being built for, e.g. 'post' or
+	 *                          'page'; passed through to the filter for post-type-specific
+	 *                          field lists.
+	 * @return array Field key => {label, type, ...optional flags above}, with entries whose
+	 *               label resolves to an empty string filtered out (e.g. a translation that
+	 *               deliberately hides a built-in field).
+	 */
 	function dropdown_options(string $post_type): array {
-		$is_operator = [['is', __('Is', 'ba-search')], ['is_not', __('Is Not', 'ba-search')]];
-
+		$is_operator = [
+			[
+				'is',
+				__('Is', 'ba-search')
+			],
+			[
+				'is_not',
+				__('Is Not', 'ba-search')
+			]
+		];
+		
 		$options = [
 			'postmeta'    => [
 				'label'      => __('Custom Fields', 'ba-search'),
@@ -169,13 +238,19 @@ class plugin {
 				'expandable' => true,
 			],
 		];
-
+		
 		$options = array_filter($options, fn($option) => $option['label'] !== '');
-
+		
 		return apply_filters('ba_search_dropdown_options', $options, $post_type);
 	}
 	
-	// Selectable data types. Determines how a condition's value is validated/compared.
+	/**
+	 * The data types offered in the condition's data type dropdown (see buildDataTypeSelect()
+	 * in script.js). Determines how a condition's value is validated and, ultimately, compared
+	 * once query building is implemented.
+	 *
+	 * @return array Data type key => translated label, e.g. 'string' => 'String'.
+	 */
 	function data_types(): array {
 		return [
 			'string' => __('String', 'ba-search'),
@@ -186,10 +261,26 @@ class plugin {
 	}
 }
 
+/**
+ * Module-level accessor for the plugin singleton — the conventional entry point other code
+ * (or this file's own bottom-of-file bootstrap) uses to get at the instance, rather than
+ * calling plugin::init() directly.
+ *
+ * @return plugin|null The singleton instance (see plugin::init()).
+ */
 function plugin(): ?plugin {
 	return plugin::init();
 }
 
+/**
+ * Whether the current request is a WordPress REST API request.
+ *
+ * Used by the bootstrap check at the bottom of this file: the plugin only needs to load in
+ * wp-admin (to render the filter UI) or during a REST request (to serve get_keys/get_values),
+ * so this lets it skip loading — and registering its hooks — on ordinary frontend requests.
+ *
+ * @return bool True if this looks like a REST API request.
+ */
 function is_rest_request(): bool {
 	if(defined('REST_REQUEST') && REST_REQUEST) {
 		return true;
@@ -203,7 +294,7 @@ function is_rest_request(): bool {
 	// constant isn't defined yet even for an actual REST request.
 	$rest_prefix = trailingslashit(rest_get_url_prefix());
 	
-	return strpos($_SERVER['REQUEST_URI'], $rest_prefix) !== false;
+	return str_contains($_SERVER['REQUEST_URI'], $rest_prefix);
 }
 
 // Load plugin only in wp-admin or on REST API requests; skip the frontend.

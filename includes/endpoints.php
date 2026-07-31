@@ -16,7 +16,7 @@ add_action('rest_api_init', function() {
 		'methods'             => 'GET',
 		'callback'            => __NAMESPACE__.'\\get_keys',
 		'permission_callback' => function() {
-			return current_user_can('manage_options');
+			return current_user_can('edit_posts');
 		},
 		'args'                => [
 			// Which EXPANDABLE_FIELDS entry to list identifiers for: 'postmeta' or 'taxonomies'.
@@ -36,7 +36,7 @@ add_action('rest_api_init', function() {
 		'methods'             => 'GET',
 		'callback'            => __NAMESPACE__.'\\get_values',
 		'permission_callback' => function() {
-			return current_user_can('manage_options');
+			return current_user_can('edit_posts');
 		},
 		'args'                => [
 			// Which field the condition is filtering on, e.g. 'postmeta', 'post_author'.
@@ -111,12 +111,17 @@ function get_keys(\WP_REST_Request $request): array {
  * result array, which is returned here as-is so WP_REST_Server sends it back as a 504 — the
  * frontend's fetchValues() checks for that status to show the timeout error in the UI.
  *
+ * A `field` that doesn't match any of the built-in cases falls through to the
+ * 'ba_search_get_values' filter, so a field added via 'ba_search_dropdown_options' (see
+ * plugin.php) can supply its own values here instead of always returning an empty result.
+ *
  * @param \WP_REST_Request $request Expects `field` and optionally `thing`, `post_type`
  *                                  (defaults to 'post'), and `search` — see the route args
  *                                  registered above for what each means per field.
  * @return array|\WP_Error List of {value, label} pairs for the requested field (empty for an
- *                         unrecognized `field`, or for 'postmeta'/'taxonomies' without a
- *                         `thing`), or a WP_Error if the underlying query timed out.
+ *                         unrecognized `field` that no 'ba_search_get_values' filter handles,
+ *                         or for 'postmeta'/'taxonomies' without a `thing`), or a WP_Error if
+ *                         the underlying query timed out.
  */
 function get_values(\WP_REST_Request $request): \WP_Error|array {
 	$field     = $request->get_param('field');
@@ -148,5 +153,7 @@ function get_values(\WP_REST_Request $request): \WP_Error|array {
 		return Helpers\get_post_parents($post_type, $search);
 	}
 
-	return [];
+	// None of the built-in fields matched — lets whoever added this field via the
+	// 'ba_search_dropdown_options' filter (see plugin.php) supply its value list here too.
+	return apply_filters('ba_search_get_values', [], $field, $thing, $post_type, $search);
 }
