@@ -617,6 +617,10 @@ class FilterGroup {
 
     static NO_VALUE_OPERATORS = new Set(['is_set', 'not_set']);
 
+    // Substring-match operators take arbitrary typed text rather than one of the field's
+    // existing exact values, since the value being searched for need not be a whole value.
+    static CONTAINS_OPERATORS = new Set(['contains', 'contains_not']);
+
     // Operators that need a "from" and "to" value instead of a single one.
     static RANGE_OPERATORS = new Set(['between', 'not_between']);
 
@@ -1010,11 +1014,12 @@ class FilterGroup {
             valueWrapper.replaceChildren(node);
         };
 
-        // Swaps the value widget to match the condition's data type and operator: an amount/unit
-        // pair for relative date operators, a "from"/"to" pair for range operators, a native
-        // date/number input for date/number (no API needed), a fixed True/False select for bool,
-        // a searchable post picker for POST_PICKER_FIELDS regardless of data type, or — for
-        // string — a SearchableDropdown of existing values. Fields in LOCAL_SEARCH_FIELDS are
+        // Swaps the value widget to match the condition's data type and operator: a free-text
+        // input for the substring CONTAINS_OPERATORS, an amount/unit pair for relative date
+        // operators, a "from"/"to" pair for range operators, a native date/number input for
+        // date/number (no API needed), a fixed True/False select for bool, a searchable post
+        // picker for POST_PICKER_FIELDS regardless of data type, or — for string — a
+        // SearchableDropdown of existing values. Fields in LOCAL_SEARCH_FIELDS are
         // fetched once and filtered client-side; everything else searches the API as the user
         // types, since its full value set can be large.
         const refreshValues = async () => {
@@ -1028,6 +1033,11 @@ class FilterGroup {
 
             if(!field || needsSubKey || FilterGroup.NO_VALUE_OPERATORS.has(operator)) {
                 setValueWidget(FilterGroup.buildValueSelect());
+                return;
+            }
+
+            if(FilterGroup.CONTAINS_OPERATORS.has(operator)) {
+                setValueWidget(FilterGroup.buildTextInput());
                 return;
             }
 

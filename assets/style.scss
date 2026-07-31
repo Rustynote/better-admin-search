@@ -16,6 +16,15 @@
         select {
             float: none !important;
         }
+        input {
+            &[type=text] {
+                width: 180px;
+            }
+            &[type=number] {
+                width: 100px;
+                min-width: 100px;
+            }
+        }
     }
     &-button {
         &-cancel {
