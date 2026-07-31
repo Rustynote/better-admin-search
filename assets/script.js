@@ -168,12 +168,14 @@ class TwoColumnSelect {
     }
 
     close() {
+        if(this.panel.hidden) return; // already closed - avoid a spurious cancel from the click that opened it
         this.panel.hidden = true;
         this.el.classList.remove('ba-search-tcs-open');
         this.leftCol.querySelectorAll('.ba-search-tcs-option-active').forEach(el => {
             el.classList.remove('ba-search-tcs-option-active');
         });
         this.showHint();
+        if(this.value === null) this.el.dispatchEvent(new CustomEvent('bas-cancel'));
     }
 
     destroy() {
@@ -653,7 +655,7 @@ class FilterGroup {
         ['0', 'False'],
     ];
     
-    constructor(operator = 'AND', isRoot = false, onEmpty = null) {
+    constructor(operator = 'AND', isRoot = false, onEmpty = null, focusFirstCondition = false) {
         this.operator = operator;
         this.isRoot = isRoot;
         this.onEmpty = onEmpty;
@@ -673,16 +675,16 @@ class FilterGroup {
         this.childrenEl = document.createElement('div');
         this.childrenEl.classList.add('ba-search-group-children');
         
-        const addConditionBtn = FilterGroup.createActionButton('+ Condition', () => this.addCondition());
+        const addConditionBtn = FilterGroup.createActionButton('+ Condition', () => this.addCondition(true));
         addConditionBtn.classList.add('ba-search-add-condition');
-        
+
         this.footer = document.createElement('div');
         this.footer.classList.add('ba-search-group-footer');
         this.footer.appendChild(addConditionBtn);
-        
+
         this.el.append(this.header, this.childrenEl, this.footer);
-        
-        this.addCondition(); // group always starts with one condition
+
+        this.addCondition(focusFirstCondition); // group always starts with one condition
     }
     
     static createActionButton(label, onClick) {
@@ -946,7 +948,7 @@ class FilterGroup {
         return await response.json();
     }
 
-    addCondition() {
+    addCondition(focus = false) {
         const condition = document.createElement('div');
         condition.classList.add('ba-search-block', 'ba-search-condition');
         condition.dataset.operator = 'AND';
@@ -969,10 +971,12 @@ class FilterGroup {
         });
         const dataTypeSelect = FilterGroup.buildDataTypeSelect();
         const operatorSelect = FilterGroup.buildOperatorSelect(dataTypeSelect.value);
+        operatorSelect.hidden = true; // stays hidden until a field is picked
 
         const valueWrapper = document.createElement('div');
         valueWrapper.classList.add('ba-search-value-wrapper');
         valueWrapper.appendChild(FilterGroup.buildValueSelect());
+        valueWrapper.hidden = true; // stays hidden until a field is picked
 
         const fieldWrapper = document.createElement('div');
         fieldWrapper.classList.add('ba-search-field-wrapper');
@@ -984,6 +988,8 @@ class FilterGroup {
             dataTypeSelect.value = FilterGroup.FIELD_OPTIONS[field]?.type ?? 'string';
             dataTypeSelect.disabled = !editable;
             dataTypeSelect.hidden = !editable;
+            operatorSelect.hidden = !field;
+            valueWrapper.hidden = !field;
         };
 
         const refreshOperators = () => {
@@ -1107,12 +1113,23 @@ class FilterGroup {
             }
         });
 
+        // If the field picker is closed without a field being chosen, this condition (and its
+        // parent group, once empty) has no reason to exist — drop it via the same path as an
+        // explicit remove click.
+        fieldSelect.el.addEventListener('bas-cancel', () => removeBtn.click(), {once: true});
+
         condition.dataTypeSelect = dataTypeSelect;
+        condition.fieldSelect = fieldSelect;
         condition.append(whereLabel, operatorToggle, fieldWrapper, operatorSelect, valueWrapper, dataTypeSelect.el, removeBtn);
-        
+
         this.childrenEl.appendChild(condition);
         this.children.push(condition);
         this.updateConditionToggles();
+
+        // Deferred past the current click's bubble so the field picker's own outside-click
+        // handler (attached above, on document) doesn't treat that same click as "outside" and
+        // immediately cancel the picker it just opened.
+        if(focus) setTimeout(() => fieldSelect.open(), 0);
     }
     
     updateConditionToggles() {
@@ -1176,7 +1193,7 @@ class BaSearch {
         const group = new FilterGroup('AND', isRoot, () => {
             group.el.remove();
             this.groups = this.groups.filter(g => g !== group);
-        });
+        }, !isRoot);
         group.el.classList.add('ba-search-block');
         
         if(!isRoot) {
@@ -1185,15 +1202,28 @@ class BaSearch {
         
         this.groupsEl.appendChild(group.el);
         this.groups.push(group);
+        if(isRoot) this.rootGroup = group;
     }
-    
+
     bindEvents() {
         this.toggleBtn.addEventListener('click', () => this.setActive(true));
         this.cancelBtn.addEventListener('click', () => this.setActive(false));
     }
-    
+
     setActive(active) {
         this.container.classList.toggle(this.activeClass, active);
+        if(active) this.focusEmptyCondition();
+    }
+
+    // On first opening the filter box, the root group's starting condition has no field chosen
+    // yet — open its picker right away, same as a freshly added condition/group. Deferred past
+    // the toggle click's bubble so the picker's own outside-click handler (on document) doesn't
+    // treat that same click as "outside" and immediately cancel it.
+    focusEmptyCondition() {
+        const fieldSelect = this.rootGroup?.children[0]?.fieldSelect;
+        if(fieldSelect && fieldSelect.value === null) {
+            setTimeout(() => fieldSelect.open(), 0);
+        }
     }
 }
 

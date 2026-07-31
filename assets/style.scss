@@ -28,14 +28,14 @@
     &-group {
         margin: 10px 0;
         padding: 10px 12px;
-        border: 1px solid var(--wp-admin-theme-color);
         border: 1px solid #c3c4c7;
         border-radius: 5px;
-        max-width: 800px;
+        width: fit-content;
+        min-width: 30vw;
+        max-width: 100%;
         position: relative;
         background: #fff;
         &-header {
-            margin-bottom: 7px;
             #{$bas}-block-remove {
                 background: none;
                 border: 0;
@@ -68,18 +68,13 @@
                 }
             }
         }
-        &-footer {
-            margin-top: 7px;
-        }
     }
     &-condition {
         display: flex;
         align-items: center;
         width: 100%;
         position: relative;
-        &:not(:first-child) {
-            margin-top: 7px;
-        }
+        margin: 7px 0;
     }
     &-field-wrapper {
         display: flex;
@@ -88,6 +83,9 @@
     }
     &-value-wrapper {
         display: inline-block;
+        &[hidden] {
+            display: none;
+        }
     }
     &-value-loading {
         color: #646970;
