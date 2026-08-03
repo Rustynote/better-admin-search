@@ -870,6 +870,10 @@ class FilterGroup {
     ];
 
     /**
+     * @param {number} groupIndex - This group's position in `ba_search[groups]`, used to build
+     *   the `name` attributes of every hidden/native input this group and its conditions submit.
+     *   Assigned once at creation (see BaSearch#nextGroupIndex) and never reused, so a removed
+     *   group leaves a gap in the submitted indices rather than shifting its siblings' names.
      * @param {string} [operator] - Initial AND/OR operator, shown on the toggle for non-root groups.
      * @param {boolean} [isRoot] - Root groups have no operator toggle and no remove button, and
      *   are never removed automatically when emptied.
@@ -878,11 +882,13 @@ class FilterGroup {
      * @param {boolean} [focusFirstCondition] - Passed through to the initial `addCondition` call;
      *   see its `focus` parameter.
      */
-    constructor(operator = 'AND', isRoot = false, onEmpty = null, focusFirstCondition = false) {
+    constructor(groupIndex, operator = 'AND', isRoot = false, onEmpty = null, focusFirstCondition = false) {
+        this.groupIndex = groupIndex;
         this.operator = operator;
         this.isRoot = isRoot;
         this.onEmpty = onEmpty;
         this.children = [];
+        this.nextConditionIndex = 0; // assigns each condition a stable, never-reused index — see groupIndex above
 
         this.el = document.createElement('div');
         this.el.classList.add('ba-search-group');
@@ -891,8 +897,12 @@ class FilterGroup {
         this.header.classList.add('ba-search-group-header');
 
         if(!this.isRoot) {
-            this.operatorToggle = FilterGroup.createOperatorToggle(this.operator, op => this.operator = op);
-            this.header.append(this.operatorToggle);
+            this.logicInput = FilterGroup.buildHiddenInput(`ba_search[groups][${this.groupIndex}][logic]`, this.operator);
+            this.operatorToggle = FilterGroup.createOperatorToggle(this.operator, op => {
+                this.operator = op;
+                this.logicInput.value = op;
+            });
+            this.header.append(this.operatorToggle, this.logicInput);
         }
 
         this.childrenEl = document.createElement('div');
@@ -908,6 +918,65 @@ class FilterGroup {
         this.el.append(this.header, this.childrenEl, this.footer);
 
         this.addCondition(focusFirstCondition); // group always starts with one condition
+    }
+
+    /**
+     * Builds a `<input type="hidden">` carrying one piece of a condition's/group's submitted
+     * state — used for every value that lives in a custom widget (TwoColumnSelect, IconSelect,
+     * SearchableDropdown) rather than a native form control, so it still reaches the containing
+     * list-table form on submit.
+     * @param {string} name
+     * @param {string} [value]
+     * @returns {HTMLInputElement}
+     */
+    static buildHiddenInput(name, value = '') {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = value;
+        return input;
+    }
+
+    /**
+     * Gives a condition's current value widget the `name`(s) it needs to submit with the
+     * containing form. Native inputs/selects (text, number, date, bool, the range and
+     * relative-date wrappers) are named directly; a SearchableDropdown has no native input at
+     * all, so it gets a hidden input appended alongside it and kept in sync via 'bas-change'.
+     * @param {string} namePrefix - This condition's `ba_search[groups][gi][conditions][ci]` prefix.
+     * @param {HTMLElement} node - The value widget currently in the value wrapper.
+     * @param {?SearchableDropdown} [dropdown] - The SearchableDropdown instance behind `node`, if any.
+     */
+    static nameValueWidget(namePrefix, node, dropdown = null) {
+        if(dropdown) {
+            const hidden = FilterGroup.buildHiddenInput(`${namePrefix}[value]`, dropdown.value ?? '');
+            node.appendChild(hidden);
+            dropdown.el.addEventListener('bas-change', e => hidden.value = e.detail.value ?? '');
+            return;
+        }
+
+        const from = node.querySelector?.('.ba-search-value-range-from');
+        if(from) {
+            from.name = `${namePrefix}[value][from]`;
+            node.querySelector('.ba-search-value-range-to').name = `${namePrefix}[value][to]`;
+            return;
+        }
+
+        const amount = node.querySelector?.('.ba-search-value-relative-amount');
+        if(amount) {
+            amount.name = `${namePrefix}[value][amount]`;
+            node.querySelector('.ba-search-value-relative-unit').name = `${namePrefix}[value][unit]`;
+            return;
+        }
+
+        const fallbackText = node.querySelector?.('.ba-search-value-text');
+        if(fallbackText) {
+            fallbackText.name = `${namePrefix}[value]`;
+            return;
+        }
+
+        if(node.matches?.('input, select')) {
+            node.name = `${namePrefix}[value]`;
+        }
     }
 
     /**
@@ -1255,6 +1324,9 @@ class FilterGroup {
      *   added by explicit user action (not the very first condition rendered at page load).
      */
     addCondition(focus = false) {
+        const conditionIndex = this.nextConditionIndex++; // stable, never reused — see groupIndex docblock
+        const namePrefix = `ba_search[groups][${this.groupIndex}][conditions][${conditionIndex}]`;
+
         const condition = document.createElement('div');
         condition.classList.add('ba-search-block', 'ba-search-condition');
         condition.dataset.operator = 'AND';
@@ -1263,7 +1335,11 @@ class FilterGroup {
         whereLabel.classList.add('ba-search-group-operator', 'ba-search-group-operator-label');
         whereLabel.textContent = 'Where';
 
-        const operatorToggle = FilterGroup.createOperatorToggle('AND', op => condition.dataset.operator = op);
+        const logicInput = FilterGroup.buildHiddenInput(`${namePrefix}[logic]`, 'AND');
+        const operatorToggle = FilterGroup.createOperatorToggle('AND', op => {
+            condition.dataset.operator = op;
+            logicInput.value = op;
+        });
 
         condition.whereLabel = whereLabel;
         condition.operatorToggle = operatorToggle;
@@ -1275,8 +1351,14 @@ class FilterGroup {
             placeholder: 'Select field…',
             onLoad: key => FilterGroup.fetchKeys(key, baSearchData.postType)
         });
+        const fieldInput = FilterGroup.buildHiddenInput(`${namePrefix}[field]`);
+        const metaKeyInput = FilterGroup.buildHiddenInput(`${namePrefix}[meta_key]`);
+
         const dataTypeSelect = FilterGroup.buildDataTypeSelect();
+        const dataTypeInput = FilterGroup.buildHiddenInput(`${namePrefix}[data_type]`, dataTypeSelect.value);
+
         const operatorSelect = FilterGroup.buildOperatorSelect(dataTypeSelect.value);
+        operatorSelect.name = `${namePrefix}[operator]`;
         operatorSelect.hidden = true; // stays hidden until a field is picked
 
         const valueWrapper = document.createElement('div');
@@ -1286,7 +1368,7 @@ class FilterGroup {
 
         const fieldWrapper = document.createElement('div');
         fieldWrapper.classList.add('ba-search-field-wrapper');
-        fieldWrapper.append(fieldSelect.el);
+        fieldWrapper.append(fieldSelect.el, fieldInput, metaKeyInput);
 
         // Syncs the data-type picker (and the operator/value inputs' visibility) to the chosen
         // field: fixed default type normally, editable only for baSearchData.editableDataTypeFields.
@@ -1296,8 +1378,14 @@ class FilterGroup {
             dataTypeSelect.value = FilterGroup.FIELD_OPTIONS[field]?.type ?? 'string';
             dataTypeSelect.disabled = !editable;
             dataTypeSelect.hidden = !editable;
+            dataTypeInput.value = dataTypeSelect.value; // IconSelect#value doesn't fire 'change' on a programmatic set
             operatorSelect.hidden = !field;
             valueWrapper.hidden = !field;
+        };
+
+        const refreshField = () => {
+            fieldInput.value = fieldSelect.value ?? '';
+            metaKeyInput.value = fieldSelect.metaKey ?? '';
         };
 
         const refreshOperators = () => {
@@ -1312,10 +1400,11 @@ class FilterGroup {
         // listener that must be torn down before it's replaced — plain inputs/selects need no
         // such cleanup, so this is a no-op for those.
         let valueDropdown = null;
-        const setValueWidget = node => {
+        const setValueWidget = (node, dropdown = null) => {
             valueDropdown?.destroy();
-            valueDropdown = null;
+            valueDropdown = dropdown;
             valueWrapper.replaceChildren(node);
+            FilterGroup.nameValueWidget(namePrefix, node, dropdown);
         };
 
         // Swaps the value widget to match the condition's data type and operator: a free-text
@@ -1360,8 +1449,7 @@ class FilterGroup {
                     onSearch: query => FilterGroup.fetchValues(field, metaKey, baSearchData.postType, query),
                     placeholder,
                 });
-                setValueWidget(dropdown.el);
-                valueDropdown = dropdown;
+                setValueWidget(dropdown.el, dropdown);
                 return;
             }
 
@@ -1397,8 +1485,7 @@ class FilterGroup {
                 if(token !== refreshToken) return; // a newer selection has since replaced this widget
 
                 const dropdown = new SearchableDropdown({options: items, placeholder});
-                setValueWidget(dropdown.el);
-                valueDropdown = dropdown;
+                setValueWidget(dropdown.el, dropdown);
                 return;
             }
 
@@ -1406,14 +1493,15 @@ class FilterGroup {
                 onSearch: query => FilterGroup.fetchValues(field, metaKey, baSearchData.postType, query),
                 placeholder,
             });
-            setValueWidget(dropdown.el);
-            valueDropdown = dropdown;
+            setValueWidget(dropdown.el, dropdown);
         };
 
         fieldSelect.el.addEventListener('bas-change', refreshDataType);
+        fieldSelect.el.addEventListener('bas-change', refreshField);
         fieldSelect.el.addEventListener('bas-change', refreshOperators);
         fieldSelect.el.addEventListener('bas-change', refreshValues);
         operatorSelect.addEventListener('change', refreshValues);
+        dataTypeSelect.addEventListener('change', () => dataTypeInput.value = dataTypeSelect.value);
         dataTypeSelect.addEventListener('change', refreshOperators);
         dataTypeSelect.addEventListener('change', refreshValues);
 
@@ -1434,7 +1522,11 @@ class FilterGroup {
 
         condition.dataTypeSelect = dataTypeSelect;
         condition.fieldSelect = fieldSelect;
-        condition.append(whereLabel, operatorToggle, fieldWrapper, operatorSelect, valueWrapper, dataTypeSelect.el, removeBtn);
+        condition.append(
+            whereLabel, operatorToggle, logicInput,
+            fieldWrapper, operatorSelect, valueWrapper,
+            dataTypeSelect.el, dataTypeInput, removeBtn
+        );
 
         this.childrenEl.appendChild(condition);
         this.children.push(condition);
@@ -1469,6 +1561,7 @@ class BaSearch {
         this.buttonClass = 'ba-search-button';
         this.activeClass = 'ba-search-container-active';
         this.groups = [];
+        this.nextGroupIndex = 0; // assigns each FilterGroup a stable, never-reused index — see FilterGroup#groupIndex
 
         this.render();
         this.bindEvents();
@@ -1525,7 +1618,7 @@ class BaSearch {
      * @param {boolean} [isRoot]
      */
     addGroup(isRoot = false) {
-        const group = new FilterGroup('AND', isRoot, () => {
+        const group = new FilterGroup(this.nextGroupIndex++, 'AND', isRoot, () => {
             group.el.remove();
             this.groups = this.groups.filter(g => g !== group);
         }, !isRoot);

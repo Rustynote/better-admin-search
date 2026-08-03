@@ -45,6 +45,7 @@
   font-size: 20px;
   line-height: 1;
   position: absolute;
+  border-top-right-radius: 5px;
   top: 0;
   right: 0;
 }
