@@ -62,6 +62,15 @@ add_action('rest_api_init', function() {
 				'type'     => 'string',
 				'required' => false,
 			],
+			// A single already-known value (e.g. a user/post ID or term slug) to resolve
+			// straight to its {value, label} pair instead of running `search` — used to restore
+			// a condition's display label from the ba_search query string on page load (see
+			// FilterGroup.restoreCondition in assets/script.js). Ignored by fields whose value
+			// already doubles as its own label (postmeta, post_status, post_name).
+			'value'     => [
+				'type'     => 'string',
+				'required' => false,
+			],
 		]
 	]);
 });
@@ -113,11 +122,13 @@ function get_keys(\WP_REST_Request $request): array {
  *
  * A `field` that doesn't match any of the built-in cases falls through to the
  * 'ba_search_get_values' filter, so a field added via 'ba_search_dropdown_options' (see
- * plugin.php) can supply its own values here instead of always returning an empty result.
+ * plugin.php) can supply its own values here instead of always returning an empty result. The
+ * filter also receives `$value`, so a field marked 'valueLookup' (see plugin.php) can resolve
+ * it to a display label the same way the built-in valueLookup fields above do.
  *
  * @param \WP_REST_Request $request Expects `field` and optionally `thing`, `post_type`
- *                                  (defaults to 'post'), and `search` — see the route args
- *                                  registered above for what each means per field.
+ *                                  (defaults to 'post'), `search`, and `value` — see the route
+ *                                  args registered above for what each means per field.
  * @return array|\WP_Error List of {value, label} pairs for the requested field (empty for an
  *                         unrecognized `field` that no 'ba_search_get_values' filter handles,
  *                         or for 'postmeta'/'taxonomies' without a `thing`), or a WP_Error if
@@ -128,13 +139,14 @@ function get_values(\WP_REST_Request $request): \WP_Error|array {
 	$thing     = $request->get_param('thing');
 	$post_type = $request->get_param('post_type') ?: 'post';
 	$search    = $request->get_param('search') ?? '';
+	$value     = $request->get_param('value');
 
 	if($field === 'postmeta') {
 		return $thing ? Helpers\get_postmeta_values($thing, $search) : [];
 	}
 
 	if($field === 'taxonomies') {
-		return $thing ? Helpers\get_taxonomy_terms($thing, $search) : [];
+		return $thing ? Helpers\get_taxonomy_terms($thing, $search, $value) : [];
 	}
 
 	if($field === 'post_status') {
@@ -142,7 +154,7 @@ function get_values(\WP_REST_Request $request): \WP_Error|array {
 	}
 
 	if($field === 'post_author') {
-		return Helpers\get_post_authors($post_type, $search);
+		return Helpers\get_post_authors($post_type, $search, $value);
 	}
 
 	if($field === 'post_name') {
@@ -150,10 +162,10 @@ function get_values(\WP_REST_Request $request): \WP_Error|array {
 	}
 
 	if($field === 'post_parent') {
-		return Helpers\get_post_parents($post_type, $search);
+		return Helpers\get_post_parents($post_type, $search, $value);
 	}
 
 	// None of the built-in fields matched — lets whoever added this field via the
 	// 'ba_search_dropdown_options' filter (see plugin.php) supply its value list here too.
-	return apply_filters('ba_search_get_values', [], $field, $thing, $post_type, $search);
+	return apply_filters('ba_search_get_values', [], $field, $thing, $post_type, $search, $value);
 }

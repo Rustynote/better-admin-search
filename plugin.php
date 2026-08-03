@@ -171,6 +171,11 @@ class plugin {
 	 * - localSearch: has a small, bounded set of values, fetched once and filtered client-side.
 	 * - postPicker: value is actually another post, searched by title instead of the plain input
 	 *   its data type would otherwise get.
+	 * - valueLookup: the value stored for a condition (an ID, a slug, ...) isn't itself a fit
+	 *   display label — restoring a condition from the ba_search query string (see
+	 *   FilterGroup.restoreCondition in script.js) resolves it via a dedicated `value` lookup
+	 *   (see includes/endpoints.php's get_values()) instead of trusting the raw value as-is.
+	 *   postPicker fields (see above) always imply this too, since their value is a post ID.
 	 *
 	 * Filterable via 'ba_search_dropdown_options' so themes/plugins can add or adjust fields —
 	 * a field added this way needs matching support in includes/endpoints.php's get_values()
@@ -214,6 +219,7 @@ class plugin {
 				'label'            => __('Post Author', 'ba-search'),
 				'type'             => 'string',
 				'operatorOverride' => $is_operator,
+				'valueLookup'      => true,
 			],
 			'post_status' => [
 				'label'            => __('Post Status', 'ba-search'),
@@ -233,9 +239,10 @@ class plugin {
 				'postPicker'       => true,
 			],
 			'taxonomies'  => [
-				'label'      => __('Taxonomies', 'ba-search'),
-				'type'       => 'string',
-				'expandable' => true,
+				'label'       => __('Taxonomies', 'ba-search'),
+				'type'        => 'string',
+				'expandable'  => true,
+				'valueLookup' => true,
 			],
 		];
 		

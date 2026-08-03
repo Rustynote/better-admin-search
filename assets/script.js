@@ -863,6 +863,27 @@ class FilterGroup {
         return FilterGroup.fieldsWhere('postPicker');
     }
 
+    /**
+     * Fields whose stored value (an ID, a slug, ...) isn't itself fit to display, so restoring a
+     * condition from the ba_search query string (see restoreCondition) must resolve it to a
+     * label via the API rather than showing the raw value. POST_PICKER_FIELDS always need this
+     * too — see fieldNeedsValueLookup.
+     * @returns {Set<string>}
+     */
+    static get VALUE_LOOKUP_FIELDS() {
+        return FilterGroup.fieldsWhere('valueLookup');
+    }
+
+    /**
+     * Whether a field's restored value needs a `value`-lookup API call (see fetchValues) to
+     * resolve a display label, rather than the raw value already being fit to show as-is.
+     * @param {string} field
+     * @returns {boolean}
+     */
+    static fieldNeedsValueLookup(field) {
+        return FilterGroup.POST_PICKER_FIELDS.has(field) || FilterGroup.VALUE_LOOKUP_FIELDS.has(field);
+    }
+
     /** @type {[string, string][]} Fixed True/False choices for the bool data type. */
     static BOOL_OPTIONS = [
         ['1', 'True'],
@@ -1288,16 +1309,19 @@ class FilterGroup {
      * @param {?string} [thing] - The meta_key / taxonomy chosen for an expandable field.
      * @param {?string} [postType]
      * @param {string} [search]
+     * @param {?string} [value] - A single already-known value to resolve straight to its label
+     *   instead of searching — see fieldNeedsValueLookup and restoreCondition.
      * @returns {Promise<{value: string, label: string}[]>} Empty array on a non-504 failure.
      * @throws {Error} If the request times out (HTTP 504).
      */
-    static async fetchValues(field, thing = null, postType = null, search = '') {
+    static async fetchValues(field, thing = null, postType = null, search = '', value = null) {
         let response;
         try {
             const params = new URLSearchParams({field});
             if(thing) params.set('thing', thing);
             if(postType) params.set('post_type', postType);
             if(search) params.set('search', search);
+            if(value) params.set('value', value);
 
             response = await fetch(`${baSearchData.apiUrl}?${params}`, {
                 headers: {'X-WP-Nonce': baSearchData.nonce},
@@ -1583,10 +1607,11 @@ class FilterGroup {
      * Prefills a freshly built condition row from parsed query-string data: picks the field
      * (looking up the real meta_key/taxonomy label first, for expandable fields, since only the
      * raw key/slug survives in the URL), overrides the data type if the field allows it and the
-     * restored one differs from the default, restores the operator, then waits for the resulting
-     * value widget to build before writing the restored value into it. Reuses the same
-     * 'bas-change' listeners a real field pick goes through (see addCondition), so this stays in
-     * sync with however that pipeline evolves.
+     * restored one differs from the default, restores the operator, waits for the resulting value
+     * widget to build, and — for fields whose value isn't its own label (see
+     * fieldNeedsValueLookup) — resolves the restored value's real label via the API before
+     * writing it into the widget. Reuses the same 'bas-change' listeners a real field pick goes
+     * through (see addCondition), so this stays in sync with however that pipeline evolves.
      * @param {Object} data - A parsed condition (see parseConditionData).
      * @param {Object} refs - The addCondition-local pieces this needs to touch.
      * @param {TwoColumnSelect} refs.fieldSelect
@@ -1625,7 +1650,13 @@ class FilterGroup {
 
         await refreshValues();
 
-        FilterGroup.applyRestoredValue(getValueNode(), getValueDropdown(), operatorSelect.value, data.value);
+        const dropdown = getValueDropdown();
+        if(dropdown && typeof data.value === 'string' && data.value !== '' && FilterGroup.fieldNeedsValueLookup(data.field)) {
+            const [resolved] = await FilterGroup.fetchValues(data.field, data.metaKey, baSearchData.postType, '', data.value);
+            if(resolved) dropdown.labelsByValue.set(data.value, resolved.label);
+        }
+
+        FilterGroup.applyRestoredValue(getValueNode(), dropdown, operatorSelect.value, data.value);
     }
 
     /**

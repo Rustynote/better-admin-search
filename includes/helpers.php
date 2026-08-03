@@ -152,15 +152,30 @@ function get_post_statuses(string $post_type): \WP_Error|array {
  * unindexed lookups. Only authors who have actually authored a post of this type are returned
  * (via the INNER JOIN), so the list doesn't include unrelated site users.
  *
+ * When $value is given (a previously-chosen user ID, restored from the ba_search query string —
+ * see FilterGroup.restoreCondition in script.js), it's resolved straight to its display name via
+ * get_userdata() — a cheap primary-key lookup — instead of running the search below, since the
+ * search only matches display names and the restored value is an ID.
+ *
  * @param string $post_type Post type slug, e.g. 'post' or 'page'.
  * @param string $search    Substring to filter display names by; empty string matches everything.
+ * @param ?string $value    A user ID to resolve directly instead of searching, if given.
  * @return array|\WP_Error List of {value, label} pairs — the user ID (as a string) and their
  *                         display name — or a Query\timeout_error() if the search took too
  *                         long to run.
  */
-function get_post_authors(string $post_type, string $search = ''): \WP_Error|array {
+function get_post_authors(string $post_type, string $search = '', ?string $value = null): \WP_Error|array {
+	if($value !== null && $value !== '') {
+		$user = get_userdata((int) $value);
+
+		return $user ? [[
+			'value' => (string) $user->ID,
+			'label' => $user->display_name
+		]] : [];
+	}
+
 	global $wpdb;
-	
+
 	$like = '%'.$wpdb->esc_like($search).'%';
 	$sql  = $wpdb->prepare(
 		"SELECT DISTINCT u.ID, u.display_name FROM {$wpdb->users} u
@@ -189,15 +204,30 @@ function get_post_authors(string $post_type, string $search = ''): \WP_Error|arr
  * index, so this goes through Query\with_timeout(). Trashed and auto-draft posts are excluded
  * since neither is a sensible parent to filter by.
  *
+ * When $value is given (a previously-chosen parent post ID, restored from the ba_search query
+ * string — see FilterGroup.restoreCondition in script.js), it's resolved straight via get_post()
+ * — a cheap primary-key lookup — instead of running the search below, since the search only
+ * matches titles and the restored value is an ID.
+ *
  * @param string $post_type Post type slug, e.g. 'post' or 'page'.
  * @param string $search    Substring to filter titles by; empty string matches everything.
+ * @param ?string $value    A post ID to resolve directly instead of searching, if given.
  * @return array|\WP_Error List of {value, label} pairs — the post ID (as a string) and a label
  *                         combining the title (or '(no title)') with the post ID — or a
  *                         Query\timeout_error() if the search took too long to run.
  */
-function get_post_parents(string $post_type, string $search = '') {
+function get_post_parents(string $post_type, string $search = '', ?string $value = null) {
+	if($value !== null && $value !== '') {
+		$post = get_post((int) $value);
+
+		return $post ? [[
+			'value' => (string) $post->ID,
+			'label' => ($post->post_title !== '' ? $post->post_title : '(no title)').' (#'.$post->ID.')'
+		]] : [];
+	}
+
 	global $wpdb;
-	
+
 	$like = '%'.$wpdb->esc_like($search).'%';
 	$sql  = $wpdb->prepare(
 		"SELECT ID, post_title FROM {$wpdb->posts}
@@ -224,12 +254,27 @@ function get_post_parents(string $post_type, string $search = '') {
  * lookups are backed by the term cache and (for the search itself) core query building, so they
  * don't carry the same unindexed-column risk as the raw SQL lookups above.
  *
+ * When $value is given (a previously-chosen term slug, restored from the ba_search query string
+ * — see FilterGroup.restoreCondition in script.js), it's resolved straight via get_term_by() —
+ * a cheap lookup keyed on the (indexed) slug — instead of running the search below, since the
+ * search only matches term names and the restored value is a slug.
+ *
  * @param string $taxonomy Taxonomy slug, e.g. 'category' or 'post_tag'.
  * @param string $search   Substring to filter term names by; empty string matches everything.
+ * @param ?string $value   A term slug to resolve directly instead of searching, if given.
  * @return array List of {value, label} pairs — the term slug and name — or an empty array if
  *               the taxonomy doesn't exist or the lookup otherwise fails.
  */
-function get_taxonomy_terms(string $taxonomy, string $search = ''): array {
+function get_taxonomy_terms(string $taxonomy, string $search = '', ?string $value = null): array {
+	if($value !== null && $value !== '') {
+		$term = get_term_by('slug', $value, $taxonomy);
+
+		return $term && !is_wp_error($term) ? [[
+			'value' => $term->slug,
+			'label' => $term->name
+		]] : [];
+	}
+
 	$terms = get_terms([
 		'taxonomy'   => $taxonomy,
 		'hide_empty' => false,
