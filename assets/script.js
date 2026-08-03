@@ -880,9 +880,12 @@ class FilterGroup {
      * @param {?function(): void} [onEmpty] - Called when the last condition is removed from a
      *   non-root group, so the caller can remove the now-pointless group too.
      * @param {boolean} [focusFirstCondition] - Passed through to the initial `addCondition` call;
-     *   see its `focus` parameter.
+     *   see its `focus` parameter. Ignored when `conditionsData` is non-empty.
+     * @param {Object[]} [conditionsData] - Parsed `ba_search[groups][gi][conditions]` entries (see
+     *   BaSearch.parseSearchParams / FilterGroup.parseConditionData) to restore this group's
+     *   conditions from, in order, instead of starting with a single blank one.
      */
-    constructor(groupIndex, operator = 'AND', isRoot = false, onEmpty = null, focusFirstCondition = false) {
+    constructor(groupIndex, operator = 'AND', isRoot = false, onEmpty = null, focusFirstCondition = false, conditionsData = []) {
         this.groupIndex = groupIndex;
         this.operator = operator;
         this.isRoot = isRoot;
@@ -917,7 +920,11 @@ class FilterGroup {
 
         this.el.append(this.header, this.childrenEl, this.footer);
 
-        this.addCondition(focusFirstCondition); // group always starts with one condition
+        if(conditionsData.length) {
+            conditionsData.forEach(data => this.addCondition(false, data));
+        } else {
+            this.addCondition(focusFirstCondition); // group always starts with one condition
+        }
     }
 
     /**
@@ -1322,21 +1329,27 @@ class FilterGroup {
      * @param {boolean} [focus] - If true, opens the field picker once the current click's event
      *   bubble finishes, instead of leaving the newly added row idle. Used for conditions/groups
      *   added by explicit user action (not the very first condition rendered at page load).
+     *   Ignored when `initialData` is given.
+     * @param {?Object} [initialData] - A parsed condition (see FilterGroup.parseConditionData) to
+     *   restore this row from instead of leaving it blank for the user to fill in — used to
+     *   rebuild the filter UI from the `ba_search` query string on page load (see
+     *   BaSearch.parseSearchParams and FilterGroup.restoreCondition).
      */
-    addCondition(focus = false) {
+    addCondition(focus = false, initialData = null) {
         const conditionIndex = this.nextConditionIndex++; // stable, never reused — see groupIndex docblock
         const namePrefix = `ba_search[groups][${this.groupIndex}][conditions][${conditionIndex}]`;
+        const initialLogic = initialData?.logic ?? 'AND';
 
         const condition = document.createElement('div');
         condition.classList.add('ba-search-block', 'ba-search-condition');
-        condition.dataset.operator = 'AND';
+        condition.dataset.operator = initialLogic;
 
         const whereLabel = document.createElement('span');
         whereLabel.classList.add('ba-search-group-operator', 'ba-search-group-operator-label');
         whereLabel.textContent = 'Where';
 
-        const logicInput = FilterGroup.buildHiddenInput(`${namePrefix}[logic]`, 'AND');
-        const operatorToggle = FilterGroup.createOperatorToggle('AND', op => {
+        const logicInput = FilterGroup.buildHiddenInput(`${namePrefix}[logic]`, initialLogic);
+        const operatorToggle = FilterGroup.createOperatorToggle(initialLogic, op => {
             condition.dataset.operator = op;
             logicInput.value = op;
         });
@@ -1532,10 +1545,129 @@ class FilterGroup {
         this.children.push(condition);
         this.updateConditionToggles();
 
-        // Deferred past the current click's bubble so the field picker's own outside-click
-        // handler (attached above, on document) doesn't treat that same click as "outside" and
-        // immediately cancel the picker it just opened.
-        if(focus) setTimeout(() => fieldSelect.open(), 0);
+        if(initialData) {
+            FilterGroup.restoreCondition(initialData, {
+                fieldSelect, dataTypeSelect, dataTypeInput, operatorSelect,
+                refreshOperators, refreshValues,
+                getValueNode: () => valueWrapper.firstElementChild,
+                getValueDropdown: () => valueDropdown,
+            });
+        } else if(focus) {
+            // Deferred past the current click's bubble so the field picker's own outside-click
+            // handler (attached above, on document) doesn't treat that same click as "outside"
+            // and immediately cancel the picker it just opened.
+            setTimeout(() => fieldSelect.open(), 0);
+        }
+    }
+
+    /**
+     * Turns one raw parsed `ba_search[groups][gi][conditions][ci]` entry (see
+     * BaSearch.parseSearchParams) into the shape `addCondition`/`restoreCondition` expect.
+     * @param {?Object} raw
+     * @returns {?Object} `null` if `raw` has no `field` — nothing usable to restore.
+     */
+    static parseConditionData(raw) {
+        if(!raw?.field) return null;
+
+        return {
+            field: raw.field,
+            metaKey: raw.meta_key || null,
+            operator: raw.operator || null,
+            dataType: raw.data_type || null,
+            value: raw.value ?? null,
+            logic: raw.logic === 'OR' ? 'OR' : 'AND',
+        };
+    }
+
+    /**
+     * Prefills a freshly built condition row from parsed query-string data: picks the field
+     * (looking up the real meta_key/taxonomy label first, for expandable fields, since only the
+     * raw key/slug survives in the URL), overrides the data type if the field allows it and the
+     * restored one differs from the default, restores the operator, then waits for the resulting
+     * value widget to build before writing the restored value into it. Reuses the same
+     * 'bas-change' listeners a real field pick goes through (see addCondition), so this stays in
+     * sync with however that pipeline evolves.
+     * @param {Object} data - A parsed condition (see parseConditionData).
+     * @param {Object} refs - The addCondition-local pieces this needs to touch.
+     * @param {TwoColumnSelect} refs.fieldSelect
+     * @param {IconSelect} refs.dataTypeSelect
+     * @param {HTMLInputElement} refs.dataTypeInput
+     * @param {HTMLSelectElement} refs.operatorSelect
+     * @param {function(): void} refs.refreshOperators
+     * @param {function(): Promise<void>} refs.refreshValues
+     * @param {function(): HTMLElement} refs.getValueNode - Returns the value wrapper's current child.
+     * @param {function(): ?SearchableDropdown} refs.getValueDropdown - Returns the current value
+     *   widget's backing SearchableDropdown, if it has one.
+     * @returns {Promise<void>}
+     */
+    static async restoreCondition(data, refs) {
+        const {
+            fieldSelect, dataTypeSelect, dataTypeInput, operatorSelect,
+            refreshOperators, refreshValues, getValueNode, getValueDropdown,
+        } = refs;
+
+        const fieldLabel = FilterGroup.FIELD_OPTIONS[data.field]?.label ?? data.field;
+        let subLabel = data.metaKey;
+        if(data.metaKey && FilterGroup.EXPANDABLE_FIELDS.has(data.field)) {
+            const keys = await FilterGroup.fetchKeys(data.field, baSearchData.postType);
+            subLabel = keys.find(k => k.value === data.metaKey)?.label ?? data.metaKey;
+        }
+        fieldSelect.select(data.field, data.metaKey || null, fieldLabel, data.metaKey ? subLabel : null);
+
+        const editable = baSearchData.editableDataTypeFields.includes(data.field);
+        if(editable && data.dataType && data.dataType !== dataTypeSelect.value) {
+            dataTypeSelect.value = data.dataType;
+            dataTypeInput.value = dataTypeSelect.value; // IconSelect#value doesn't fire 'change' on a programmatic set
+            refreshOperators();
+        }
+
+        if(data.operator) operatorSelect.value = data.operator;
+
+        await refreshValues();
+
+        FilterGroup.applyRestoredValue(getValueNode(), getValueDropdown(), operatorSelect.value, data.value);
+    }
+
+    /**
+     * Writes a restored value into a condition's just-built value widget, matching the shape
+     * `FilterGroup.nameValueWidget` submits it in: a plain string/number for a native input or a
+     * SearchableDropdown, or a `{from, to}` / `{amount, unit}` object for the range/relative-date
+     * wrapper. A no-op for `is_set`/`not_set` (no value input) or when nothing was restored.
+     * @param {HTMLElement} node - The value wrapper's current child, as built by `refreshValues`.
+     * @param {?SearchableDropdown} dropdown - Its backing SearchableDropdown, if any.
+     * @param {string} operator
+     * @param {*} value
+     */
+    static applyRestoredValue(node, dropdown, operator, value) {
+        if(value == null || !node) return;
+
+        if(dropdown) {
+            dropdown.value = value;
+            dropdown.updateTrigger();
+            const hidden = node.querySelector('input[type="hidden"]');
+            if(hidden) hidden.value = value ?? '';
+            return;
+        }
+
+        if(FilterGroup.RANGE_OPERATORS.has(operator)) {
+            const from = node.querySelector?.('.ba-search-value-range-from');
+            const to = node.querySelector?.('.ba-search-value-range-to');
+            if(from) from.value = value.from ?? '';
+            if(to) to.value = value.to ?? '';
+            return;
+        }
+
+        if(FilterGroup.RELATIVE_DATE_OPERATORS.has(operator)) {
+            const amount = node.querySelector?.('.ba-search-value-relative-amount');
+            const unit = node.querySelector?.('.ba-search-value-relative-unit');
+            if(amount) amount.value = value.amount ?? '1';
+            if(unit) unit.value = value.unit ?? unit.value;
+            return;
+        }
+
+        if(node.matches?.('input, select')) {
+            node.value = value;
+        }
     }
 
     /**
@@ -1604,7 +1736,13 @@ class BaSearch {
 
         const addGroupBtn = FilterGroup.createActionButton('+ Group', () => this.addGroup());
 
-        this.addGroup(true); // root
+        const groupsData = BaSearch.orderedValues(BaSearch.parseSearchParams().groups);
+        if(groupsData.length) {
+            groupsData.forEach((groupData, index) => this.addGroup(index === 0, groupData));
+            this.setActive(true, false); // reveal the box immediately — a search is already applied
+        } else {
+            this.addGroup(true); // root
+        }
 
         this.filterList.append(this.groupsEl, addGroupBtn);
         this.container.append(this.toggleBtn, this.cancelBtn, this.filterList);
@@ -1612,16 +1750,66 @@ class BaSearch {
     }
 
     /**
-     * Creates a new top-level FilterGroup and appends it. Non-root groups get a remove button
-     * and auto-open their first condition's field picker (see FilterGroup#addCondition); the
-     * root group does neither, since it's created before the filter box is ever shown.
-     * @param {boolean} [isRoot]
+     * Parses `ba_search[...]` bracket-notation params out of a query string into the same nested
+     * shape PHP builds from $_GET — used to rebuild the filter UI from whatever search the
+     * containing list table form was last submitted with (see `render`), the same way PHP's own
+     * query-building will eventually read it back on the server side.
+     * @param {string} [search] - Defaults to the current page's query string.
+     * @returns {Object} `{groups: {...}}`-shaped (numeric-string-keyed) object; `{}` if no
+     *   `ba_search` params are present.
      */
-    addGroup(isRoot = false) {
-        const group = new FilterGroup(this.nextGroupIndex++, 'AND', isRoot, () => {
+    static parseSearchParams(search = window.location.search) {
+        const root = {};
+
+        for(const [rawKey, value] of new URLSearchParams(search)) {
+            if(!rawKey.startsWith('ba_search[')) continue;
+
+            const segments = [...rawKey.matchAll(/\[([^\]]*)\]/g)].map(m => m[1]);
+            let node = root;
+            segments.forEach((segment, i) => {
+                if(i === segments.length - 1) {
+                    node[segment] = value;
+                } else {
+                    node[segment] ??= {};
+                    node = node[segment];
+                }
+            });
+        }
+
+        return root;
+    }
+
+    /**
+     * Turns an object keyed by numeric-string index (as `parseSearchParams`' bracket-notation
+     * parsing produces for `[groups]`/`[conditions]`) into an array ordered the same way PHP
+     * would iterate the equivalent `$_GET` array.
+     * @param {?Object<string, *>} obj
+     * @returns {*[]}
+     */
+    static orderedValues(obj) {
+        return Object.entries(obj ?? {})
+            .sort(([a], [b]) => Number(a) - Number(b))
+            .map(([, value]) => value);
+    }
+
+    /**
+     * Creates a new top-level FilterGroup and appends it. Non-root groups get a remove button;
+     * a group with no restored conditions to show also auto-opens its first condition's field
+     * picker (see FilterGroup#addCondition) — except the root group, since it's created before
+     * the filter box is ever shown.
+     * @param {boolean} [isRoot]
+     * @param {?Object} [groupData] - This group's parsed `ba_search[groups][gi]` entry (see
+     *   parseSearchParams), to restore its operator and conditions from.
+     */
+    addGroup(isRoot = false, groupData = null) {
+        const conditionsData = BaSearch.orderedValues(groupData?.conditions)
+            .map(FilterGroup.parseConditionData)
+            .filter(Boolean);
+
+        const group = new FilterGroup(this.nextGroupIndex++, groupData?.logic ?? 'AND', isRoot, () => {
             group.el.remove();
             this.groups = this.groups.filter(g => g !== group);
-        }, !isRoot);
+        }, !isRoot && !conditionsData.length, conditionsData);
         group.el.classList.add('ba-search-block');
 
         if(!isRoot) {
@@ -1642,10 +1830,14 @@ class BaSearch {
      * Shows or hides the filter box. Activating also tries to open the root group's still-empty
      * starting condition's field picker (see `focusEmptyCondition`).
      * @param {boolean} active
+     * @param {boolean} [focusEmpty] - Pass false to skip auto-opening the field picker — used
+     *   when activating the box because a search was just restored from the URL, since that
+     *   condition isn't actually empty (its field picker just hasn't resolved yet — see
+     *   FilterGroup.restoreCondition).
      */
-    setActive(active) {
+    setActive(active, focusEmpty = true) {
         this.container.classList.toggle(this.activeClass, active);
-        if(active) this.focusEmptyCondition();
+        if(active && focusEmpty) this.focusEmptyCondition();
     }
 
     /**
