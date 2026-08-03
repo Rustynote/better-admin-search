@@ -2,6 +2,8 @@
 
 namespace BetterAdminSearch\Filter;
 
+use \BetterAdminSearch\Operators;
+
 /*
  * Builds the admin post list's SQL WHERE (and any JOINs it needs) from the `ba_search` query
  * string parameter submitted by the filter box in assets/script.js, and applies it to the list
@@ -29,23 +31,6 @@ namespace BetterAdminSearch\Filter;
  * from every code path). A group left with no valid conditions is dropped the same way, and if
  * every group ends up empty this file changes nothing — the list table runs its normal query.
  */
-
-/** @var string[] Operators that need no value (see FilterGroup.NO_VALUE_OPERATORS in assets/script.js). */
-const NO_VALUE_OPERATORS = ['is_set', 'not_set'];
-
-/** @var string[] Operators whose value is a ['from'=>, 'to'=>] pair. */
-const RANGE_OPERATORS = ['between', 'not_between'];
-
-/** @var string[] Date operators whose value is an ['amount'=>, 'unit'=>] pair. */
-const RELATIVE_DATE_OPERATORS = ['last', 'not_in_last', 'before_last', 'in_next'];
-
-/** @var array<string,string> Submitted unit name => the SQL INTERVAL unit keyword it maps to. */
-const RELATIVE_DATE_UNIT_SQL = [
-	'days'   => 'DAY',
-	'weeks'  => 'WEEK',
-	'months' => 'MONTH',
-	'years'  => 'YEAR',
-];
 
 /**
  * Hooks the filter into 'pre_get_posts'. Called once from plugin::actions().
@@ -274,13 +259,13 @@ function build_taxonomy_condition(string $taxonomy, string $operator, mixed $val
 function build_date_condition(string $column, string $operator, mixed $value): ?array {
 	global $wpdb;
 
-	if(in_array($operator, RELATIVE_DATE_OPERATORS, true)) {
+	if(in_array($operator, Operators\relative_date_operators(), true)) {
 		if(!is_array($value) || !isset($value['amount'], $value['unit'])) {
 			return null;
 		}
 
 		$amount = (int) $value['amount'];
-		$unit   = RELATIVE_DATE_UNIT_SQL[$value['unit']] ?? null;
+		$unit   = Operators\relative_date_units()[$value['unit']]['sql'] ?? null;
 
 		if($amount < 1 || $unit === null) {
 			return null;
@@ -295,7 +280,7 @@ function build_date_condition(string $column, string $operator, mixed $value): ?
 		};
 	}
 
-	if(in_array($operator, RANGE_OPERATORS, true)) {
+	if(in_array($operator, Operators\range_operators(), true)) {
 		if(!is_array($value) || empty($value['from']) || empty($value['to'])) {
 			return null;
 		}
@@ -342,7 +327,7 @@ function build_meta_condition(string $meta_key, string $data_type, string $opera
 	$alias = 'ba_meta_'.($alias_counter++);
 	$join  = $wpdb->prepare(" LEFT JOIN {$wpdb->postmeta} AS $alias ON ($alias.post_id = {$wpdb->posts}.ID AND $alias.meta_key = %s)", $meta_key);
 
-	if(in_array($operator, NO_VALUE_OPERATORS, true)) {
+	if(in_array($operator, Operators\no_value_operators(), true)) {
 		$where = $operator === 'is_set' ? "$alias.meta_value IS NOT NULL" : "$alias.meta_value IS NULL";
 
 		return ['join' => $join, 'where' => $where, 'distinct' => true];
@@ -369,7 +354,7 @@ function build_meta_condition(string $meta_key, string $data_type, string $opera
 	if($data_type === 'number') {
 		$column = "CAST($alias.meta_value AS DECIMAL(20,4))";
 
-		if(in_array($operator, RANGE_OPERATORS, true)) {
+		if(in_array($operator, Operators\range_operators(), true)) {
 			if(!is_array($value) || !is_numeric($value['from'] ?? null) || !is_numeric($value['to'] ?? null)) {
 				return null;
 			}

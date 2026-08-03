@@ -12,6 +12,15 @@
  * @property {string} keysApiUrl - REST endpoint for fetching meta keys / taxonomies (see FilterGroup.fetchKeys).
  * @property {string} nonce - WP REST nonce sent as the X-WP-Nonce header on API requests.
  * @property {string} postType - The post type the current admin list table is showing.
+ * @property {string[]} noValueOperators - Operators that take no value; see FilterGroup.NO_VALUE_OPERATORS.
+ *   Sourced from includes/operators.php so the query builder (includes/filter.php) agrees.
+ * @property {string[]} rangeOperators - Operators whose value is a from/to pair; see
+ *   FilterGroup.RANGE_OPERATORS. Sourced from includes/operators.php.
+ * @property {string[]} relativeDateOperators - Date operators whose value is an amount/unit pair;
+ *   see FilterGroup.RELATIVE_DATE_OPERATORS. Sourced from includes/operators.php.
+ * @property {Object<string,string>} relativeDateUnits - Unit value => label, e.g.
+ *   `{days: 'Days', weeks: 'Weeks', ...}`; see FilterGroup.RELATIVE_DATE_UNITS. Sourced from
+ *   includes/operators.php.
  */
 // Prevent ide from throwing errors that the object doesn't exists.
 baSearchData = baSearchData || {
@@ -24,6 +33,10 @@ baSearchData = baSearchData || {
     keysApiUrl: '',
     nonce: '',
     postType: '',
+    noValueOperators: '',
+    rangeOperators: '',
+    relativeDateOperators: '',
+    relativeDateUnits: '',
 };
 
 /**
@@ -807,8 +820,16 @@ class FilterGroup {
             .map(([field, option]) => [field, option.operatorOverride]));
     }
 
-    /** @type {Set<string>} Operators that take no value input at all (Is Set / Is Not Set). */
-    static NO_VALUE_OPERATORS = new Set(['is_set', 'not_set']);
+    /**
+     * Operators that take no value input at all (Is Set / Is Not Set). Sourced from
+     * baSearchData.noValueOperators (see includes/operators.php) rather than declared here, so
+     * the query builder (includes/filter.php) and this UI can't drift apart on which operators
+     * these are.
+     * @returns {Set<string>}
+     */
+    static get NO_VALUE_OPERATORS() {
+        return new Set(baSearchData.noValueOperators);
+    }
 
     /**
      * Substring-match operators take arbitrary typed text rather than one of the field's
@@ -817,23 +838,32 @@ class FilterGroup {
      */
     static CONTAINS_OPERATORS = new Set(['contains', 'contains_not']);
 
-    /** @type {Set<string>} Operators that need a "from" and "to" value instead of a single one. */
-    static RANGE_OPERATORS = new Set(['between', 'not_between']);
+    /**
+     * Operators that need a "from" and "to" value instead of a single one. Sourced from
+     * baSearchData.rangeOperators — see NO_VALUE_OPERATORS.
+     * @returns {Set<string>}
+     */
+    static get RANGE_OPERATORS() {
+        return new Set(baSearchData.rangeOperators);
+    }
 
     /**
-     * Date operators expressed as a rolling amount of time (e.g. "in the last 7 days")
-     * rather than a fixed date.
-     * @type {Set<string>}
+     * Date operators expressed as a rolling amount of time (e.g. "in the last 7 days") rather
+     * than a fixed date. Sourced from baSearchData.relativeDateOperators — see NO_VALUE_OPERATORS.
+     * @returns {Set<string>}
      */
-    static RELATIVE_DATE_OPERATORS = new Set(['last', 'not_in_last', 'before_last', 'in_next']);
+    static get RELATIVE_DATE_OPERATORS() {
+        return new Set(baSearchData.relativeDateOperators);
+    }
 
-    /** @type {[string, string][]} Units offered for the relative date amount/unit input. */
-    static RELATIVE_DATE_UNITS = [
-        ['days', 'Days'],
-        ['weeks', 'Weeks'],
-        ['months', 'Months'],
-        ['years', 'Years'],
-    ];
+    /**
+     * Units offered for the relative date amount/unit input. Sourced from
+     * baSearchData.relativeDateUnits — see NO_VALUE_OPERATORS.
+     * @returns {[string, string][]}
+     */
+    static get RELATIVE_DATE_UNITS() {
+        return Object.entries(baSearchData.relativeDateUnits);
+    }
 
     /**
      * Fields that need a sub-pick (which meta key / which taxonomy) before a value can load.

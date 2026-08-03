@@ -95,11 +95,13 @@ class plugin {
 	 * Loads the plugin's supporting files.
 	 *
 	 * helpers.php's value-lookup functions call into Query\with_timeout() etc. from query.php,
-	 * but since those are plain function definitions (not executed on load), the require order
-	 * below doesn't actually matter — PHP only needs query.php loaded by the time helpers.php's
-	 * functions are called, not by the time they're defined.
+	 * and filter.php calls into Operators\* from operators.php, but since those are all plain
+	 * function definitions (not executed on load), the require order below doesn't actually
+	 * matter — PHP only needs each file loaded by the time the other's functions are called, not
+	 * by the time they're defined.
 	 */
 	function includes(): void {
+		require_once $this->includes_dir.'operators.php';
 		require_once $this->includes_dir.'helpers.php';
 		require_once $this->includes_dir.'endpoints.php';
 		require_once $this->includes_dir.'query.php';
@@ -123,7 +125,9 @@ class plugin {
 	/**
 	 * Enqueues the plugin's style/script on the post list screen and localizes everything
 	 * script.js needs to render the filter UI — the field list (from dropdown_options()),
-	 * selectable data types, REST endpoint URLs, and the nonce to call them with.
+	 * selectable data types, the operator-classification lists from includes/operators.php (so
+	 * they and includes/filter.php's query builder stay in sync off one shared definition),
+	 * REST endpoint URLs, and the nonce to call them with.
 	 *
 	 * Hooked to 'admin_enqueue_scripts', which fires on every wp-admin page; bails out early
 	 * for everything except edit.php (the post list screen), which is the only place the
@@ -140,14 +144,14 @@ class plugin {
 		if($hook != 'edit.php') {
 			return;
 		}
-		
+
 		$post_type = $_GET['post_type'] ?? 'post';
-		
+
 		wp_enqueue_style($this->basename.'-style', $this->assets_url.'style.css', [], $this->version);
 		wp_enqueue_script($this->basename.'-script', $this->assets_url.'script.js', [], $this->version);
-		
+
 		$options = $this->dropdown_options($post_type);
-		
+
 		wp_localize_script($this->basename.'-script', 'baSearchData', [
 			'filterBoxToggleLabel'       => __('Advanced Filters', 'ba-search'),
 			'filterBoxToggleCancelLabel' => __('Cancel', 'ba-search'),
@@ -159,6 +163,10 @@ class plugin {
 			'nonce'                      => wp_create_nonce('wp_rest'),
 			'dataTypes'                  => $this->data_types(),
 			'editableDataTypeFields'     => apply_filters('ba_search_editable_data_type_fields', ['postmeta']),
+			'noValueOperators'           => Operators\no_value_operators(),
+			'rangeOperators'             => Operators\range_operators(),
+			'relativeDateOperators'      => Operators\relative_date_operators(),
+			'relativeDateUnits'          => array_map(fn($unit) => $unit['label'], Operators\relative_date_units()),
 		]);
 	}
 	
