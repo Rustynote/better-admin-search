@@ -2,6 +2,10 @@
 
 namespace BetterAdminSearch\Operators;
 
+if(!defined('ABSPATH')) {
+	exit;
+}
+
 /*
  * Single source of truth for the small operator-classification lists that both the query builder
  * (includes/filter.php) and the filter UI (assets/script.js, via wp_localize_script — see

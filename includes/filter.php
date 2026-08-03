@@ -4,6 +4,10 @@ namespace BetterAdminSearch\Filter;
 
 use \BetterAdminSearch\Operators;
 
+if(!defined('ABSPATH')) {
+	exit;
+}
+
 /*
  * Builds the admin post list's SQL WHERE (and any JOINs it needs) from the `ba_search` query
  * string parameter submitted by the filter box in assets/script.js, and applies it to the list

@@ -2,6 +2,10 @@
 
 namespace BetterAdminSearch\Query;
 
+if(!defined('ABSPATH')) {
+	exit;
+}
+
 /*
  * Server-side timeout guard for the value-search queries in helpers.php.
  *

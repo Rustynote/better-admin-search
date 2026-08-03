@@ -9,15 +9,20 @@ namespace BetterAdminSearch;
  * Plugin Name:       Better Admin Search
  * Plugin URI:        https://github.com/Rustynote/better-admin-search
  * Description:       Adds advanced filters to the post/page list screens, letting you combine multiple conditions with AND/OR logic to narrow results fast.
- * Version:           0.0.1
+ * Version:           1.0.0
  * Requires at least: 5.2
  * Requires PHP:      8.1
- * Author:            Jaroslav Suhanek
+ * Author:            Rustynote
  * Author URI:        https://wparcanum.com/
  * Text Domain:       better-admin-search
  * License:           GPL v3
  * License URI:       http://www.gnu.org/licenses/gpl-3.0.txt
  */
+
+if(!defined('ABSPATH')) {
+	exit;
+}
+
 class plugin {
 	// Populated by vars(), called once from init(). See vars() for what each one holds.
 	private string $version;
@@ -29,8 +34,7 @@ class plugin {
 	private string $lang_dir;
 	private string $textdomain;
 	private string $assets_url;
-	private string $option_name;
-	
+
 	// Instantiated only via init(); nothing to set up here that vars()/includes()/actions()
 	// don't already handle in a defined order.
 	function __construct() { /* Do nothing */ }

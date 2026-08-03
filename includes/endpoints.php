@@ -3,13 +3,17 @@
 namespace BetterAdminSearch\Endpoints;
 use \BetterAdminSearch\Helpers;
 
+if(!defined('ABSPATH')) {
+	exit;
+}
+
 /*
  * REST routes that power the filter UI's field/value pickers (see assets/script.js). The
  * two-step flow is: the field picker calls get_keys when the user expands an EXPANDABLE_FIELDS
- * entry (Custom Fields, Taxonomies) to list what's inside it (meta keys, taxonomy names); the
- * value picker then calls get_values, passing that choice back as `thing`, to list or search
- * the actual values for the condition. Both require 'manage_options' — this is admin-only
- * tooling, not a public search API.
+ * entry (Custom Fields, Taxonomies, or a custom field marked 'expandable') to list what's
+ * inside it (meta keys, taxonomy names, ...); the value picker then calls get_values, passing
+ * that choice back as `thing`, to list or search the actual values for the condition. Both
+ * require 'manage_options' — this is admin-only tooling, not a public search API.
  */
 add_action('rest_api_init', function() {
 	register_rest_route('bas/v1', 'get_keys', [
@@ -19,7 +23,8 @@ add_action('rest_api_init', function() {
 			return current_user_can('manage_options');
 		},
 		'args'                => [
-			// Which EXPANDABLE_FIELDS entry to list identifiers for: 'postmeta' or 'taxonomies'.
+			// Which EXPANDABLE_FIELDS entry to list identifiers for: 'postmeta', 'taxonomies',
+			// or a custom field handled by the 'ba_search_get_keys' filter.
 			'field'     => [
 				'type'     => 'string',
 				'required' => true,
@@ -45,7 +50,8 @@ add_action('rest_api_init', function() {
 				'required' => true,
 			],
 			// The sub-identifier chosen via get_keys — a meta_key for 'postmeta', a taxonomy
-			// slug for 'taxonomies'. Unused (and the route returns []) for every other field.
+			// slug for 'taxonomies', or whatever 'ba_search_get_keys' returned for a custom
+			// expandable field. Unused by every non-expandable field.
 			'thing'     => [
 				'type'     => 'string',
 				'required' => false,
@@ -79,33 +85,38 @@ add_action('rest_api_init', function() {
  * Identifiers to drill into: meta_key names for Custom Fields, or the taxonomy list for
  * Taxonomies. Populates the field picker's right column when one of those is expanded.
  *
- * Only handles the two EXPANDABLE_FIELDS entries; any other `field` value (or one that isn't
- * expandable) returns an empty array rather than an error, since the frontend only calls this
- * for fields it already knows are expandable.
+ * A `field` that doesn't match either built-in case falls through to the 'ba_search_get_keys'
+ * filter, so a field added via 'ba_search_dropdown_options' (see plugin.php) with 'expandable'
+ * set to true can supply its own sub-identifier list here instead of always getting an empty
+ * one.
  *
- * @param \WP_REST_Request $request Expects `field` ('postmeta' or 'taxonomies') and optionally
- *                                  `post_type` (defaults to 'post').
- * @return array List of {value, label} pairs: meta key names for 'postmeta', or taxonomy
- *               slug/label pairs for 'taxonomies'.
+ * @param \WP_REST_Request $request Expects `field` ('postmeta', 'taxonomies', or a custom
+ *                                  expandable field) and optionally `post_type` (defaults to
+ *                                  'post').
+ * @return array List of {value, label} pairs: meta key names for 'postmeta', taxonomy
+ *               slug/label pairs for 'taxonomies', or whatever a 'ba_search_get_keys' filter
+ *               returns for anything else (empty if none handles it).
  */
 function get_keys(\WP_REST_Request $request): array {
-	$field = $request->get_param('field');
-	
+	$field     = $request->get_param('field');
+	$post_type = $request->get_param('post_type') ?: 'post';
+
 	if($field === 'postmeta') {
 		return Helpers\get_postmeta_keys();
 	}
-	
+
 	if($field === 'taxonomies') {
-		$post_type  = $request->get_param('post_type') ?: 'post';
 		$taxonomies = Helpers\get_post_type_taxonomies($post_type);
-		
+
 		return array_map(fn($slug, $label) => [
 			'value' => $slug,
 			'label' => $label
 		], array_keys($taxonomies), $taxonomies);
 	}
-	
-	return [];
+
+	// None of the built-in fields matched — lets whoever added this field via the
+	// 'ba_search_dropdown_options' filter (see plugin.php) supply its key list here too.
+	return apply_filters('ba_search_get_keys', [], $field, $post_type);
 }
 
 /**

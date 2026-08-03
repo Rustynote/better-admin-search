@@ -3,6 +3,10 @@
 namespace BetterAdminSearch\Helpers;
 use \BetterAdminSearch\Query;
 
+if(!defined('ABSPATH')) {
+	exit;
+}
+
 /*
  * Data lookups behind the REST endpoints in endpoints.php: everything the filter UI needs to
  * populate the field picker's expandable sub-lists (postmeta keys, taxonomies) and the value
