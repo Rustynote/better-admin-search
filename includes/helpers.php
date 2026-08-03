@@ -125,14 +125,18 @@ function get_post_slugs(string $post_type, string $search = ''): \WP_Error|array
  * Query\with_timeout() for consistency, though a timeout here is unlikely — there's no LIKE
  * clause, just an equality match on post_type.
  *
+ * 'trash' and 'auto-draft' are excluded even when posts exist in those statuses, since
+ * WordPress's own list table never shows them as filterable statuses either (trashed posts get
+ * their own "Trash" view instead, and auto-drafts are never-saved placeholders).
+ *
  * @param string $post_type Post type slug, e.g. 'post' or 'page'.
  * @return array|\WP_Error List of {value, label} pairs (both the post_status, e.g. 'publish'),
  *                         or a Query\timeout_error() if the query took too long to run.
  */
 function get_post_statuses(string $post_type): \WP_Error|array {
 	global $wpdb;
-	
-	$sql    = $wpdb->prepare("SELECT DISTINCT post_status FROM {$wpdb->posts} WHERE post_type = %s ORDER BY post_status ASC LIMIT 200", $post_type);
+
+	$sql    = $wpdb->prepare("SELECT DISTINCT post_status FROM {$wpdb->posts} WHERE post_type = %s AND post_status NOT IN ('trash', 'auto-draft') ORDER BY post_status ASC LIMIT 200", $post_type);
 	$values = Query\with_timeout($sql);
 	
 	if($values === null) {
@@ -197,12 +201,15 @@ function get_post_authors(string $post_type, string $search = '', ?string $value
 }
 
 /**
- * Candidate parent posts, searched by title within the same post type.
- *
- * Backs the POST_PICKER_FIELDS value widget for post_parent (see assets/script.js): rather than
- * a plain number input, the user searches for the parent post by its title. post_title has no
- * index, so this goes through Query\with_timeout(). Trashed and auto-draft posts are excluded
- * since neither is a sensible parent to filter by.
+ * Candidate parent posts, searched by title within the same post type — only posts that are
+ * actually somebody's parent already (i.e. another post of the same type has them as its
+ * post_parent), since those are the only values the post_parent condition could ever actually
+ * match. The EXISTS check's child side is scoped to $post_type too, not just any post_parent
+ * match — otherwise every post with a revision or an attached media item (both of which point
+ * their own post_parent at it) would wrongly qualify as a "parent". post_parent is indexed, so
+ * the check is cheap; post_title has no index, so the title search still goes through
+ * Query\with_timeout(). Trashed and auto-draft posts are excluded from the candidates since
+ * neither is a sensible parent to filter by.
  *
  * When $value is given (a previously-chosen parent post ID, restored from the ba_search query
  * string — see FilterGroup.restoreCondition in script.js), it's resolved straight via get_post()
@@ -230,10 +237,11 @@ function get_post_parents(string $post_type, string $search = '', ?string $value
 
 	$like = '%'.$wpdb->esc_like($search).'%';
 	$sql  = $wpdb->prepare(
-		"SELECT ID, post_title FROM {$wpdb->posts}
-		 WHERE post_type = %s AND post_status NOT IN ('trash', 'auto-draft') AND post_title LIKE %s
-		 ORDER BY post_title ASC LIMIT 50",
-		$post_type, $like
+		"SELECT p.ID, p.post_title FROM {$wpdb->posts} p
+		 WHERE p.post_type = %s AND p.post_status NOT IN ('trash', 'auto-draft') AND p.post_title LIKE %s
+		 AND EXISTS (SELECT 1 FROM {$wpdb->posts} c WHERE c.post_parent = p.ID AND c.post_type = %s)
+		 ORDER BY p.post_title ASC LIMIT 50",
+		$post_type, $like, $post_type
 	);
 	$rows = Query\with_timeout($sql, 'get_results');
 	

@@ -103,17 +103,21 @@ class plugin {
 		require_once $this->includes_dir.'helpers.php';
 		require_once $this->includes_dir.'endpoints.php';
 		require_once $this->includes_dir.'query.php';
+		require_once $this->includes_dir.'filter.php';
 	}
-	
+
 	/**
-	 * Wires up the plugin's WordPress hooks. Currently just the one: enqueueing assets (and
-	 * localizing the field data) on the admin list screens.
+	 * Wires up the plugin's WordPress hooks: enqueueing assets (and localizing the field data)
+	 * on the admin list screens, and applying the submitted `ba_search` filter (see
+	 * includes/filter.php) to the list table's query.
 	 */
 	function actions(): void {
 		add_action('admin_enqueue_scripts', [
 			$this,
 			'admin_enqueue_scripts'
 		]);
+
+		\BetterAdminSearch\Filter\bootstrap();
 	}
 	
 	/**
@@ -253,8 +257,8 @@ class plugin {
 	
 	/**
 	 * The data types offered in the condition's data type dropdown (see buildDataTypeSelect()
-	 * in script.js). Determines how a condition's value is validated and, ultimately, compared
-	 * once query building is implemented.
+	 * in script.js). Determines how a condition's value is compared once submitted — see
+	 * includes/filter.php's build_meta_condition(), the only field this actually varies for.
 	 *
 	 * @return array Data type key => translated label, e.g. 'string' => 'String'.
 	 */
