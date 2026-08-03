@@ -16,7 +16,7 @@ add_action('rest_api_init', function() {
 		'methods'             => 'GET',
 		'callback'            => __NAMESPACE__.'\\get_keys',
 		'permission_callback' => function() {
-			return current_user_can('edit_posts');
+			return current_user_can('manage_options');
 		},
 		'args'                => [
 			// Which EXPANDABLE_FIELDS entry to list identifiers for: 'postmeta' or 'taxonomies'.
@@ -36,7 +36,7 @@ add_action('rest_api_init', function() {
 		'methods'             => 'GET',
 		'callback'            => __NAMESPACE__.'\\get_values',
 		'permission_callback' => function() {
-			return current_user_can('edit_posts');
+			return current_user_can('manage_options');
 		},
 		'args'                => [
 			// Which field the condition is filtering on, e.g. 'postmeta', 'post_author'.

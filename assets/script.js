@@ -21,6 +21,34 @@
  * @property {Object<string,string>} relativeDateUnits - Unit value => label, e.g.
  *   `{days: 'Days', weeks: 'Weeks', ...}`; see FilterGroup.RELATIVE_DATE_UNITS. Sourced from
  *   includes/operators.php.
+ * @property {Object<string,string[]>} operatorsByType - Data type => ordered operator codes; see
+ *   FilterGroup.OPERATORS. Sourced from includes/operators.php's operators_by_type().
+ * @property {Object<string,string>} operatorLabels - Operator code => translated label; see
+ *   FilterGroup.OPERATORS. Sourced from includes/operators.php's operator_labels().
+ * @property {[string,string][]} boolOptions - Fixed True/False [value, label] pairs; see
+ *   FilterGroup.BOOL_OPTIONS. Sourced from includes/operators.php's bool_options().
+ * @property {Object<string,string>} logicLabels - 'AND'/'OR' => translated label, for the toggle
+ *   buttons; see FilterGroup.createOperatorToggle. The submitted value itself stays 'AND'/'OR'.
+ * @property {string} selectPlaceholder - Generic dropdown trigger text before anything is picked.
+ * @property {string} searchPlaceholder - Generic search input placeholder.
+ * @property {string} selectFieldPlaceholder - Field picker's trigger text before a field is picked.
+ * @property {string} selectValuePlaceholder - Value picker's trigger text before a value is picked.
+ * @property {string} applyLabel - Multi-select dropdown's Apply button.
+ * @property {string} removeLabel - aria-label for a condition/group's remove button.
+ * @property {string} addConditionLabel - "+ Condition" button text.
+ * @property {string} addGroupLabel - "+ Group" button text.
+ * @property {string} whereLabel - Shown before a group's first condition, e.g. "Where".
+ * @property {string} rangeSeparatorLabel - Between a range's "from" and "to" inputs, e.g. "and".
+ * @property {string} loadingLabel - Shown while a value list is fetched.
+ * @property {string} searchingLabel - Shown while a search request is in flight.
+ * @property {string} noResultsLabel - Shown when a search/list comes back empty.
+ * @property {string} pickOptionHint - TwoColumnSelect's right-column hint before a left pick.
+ * @property {string} useValueTemplate - "Use %s" template (%s replaced with the typed value)
+ *   offered when a value search errors out.
+ * @property {string} selectedCountTemplate - "%d selected" template (%d replaced with a count)
+ *   for a multi-select dropdown's trigger/footer text.
+ * @property {string} searchTimeoutMessage - Fallback shown when a value search times out and the
+ *   server's own message can't be read.
  */
 // Prevent ide from throwing errors that the object doesn't exists.
 baSearchData = baSearchData || {
@@ -37,6 +65,27 @@ baSearchData = baSearchData || {
     rangeOperators: '',
     relativeDateOperators: '',
     relativeDateUnits: '',
+    operatorsByType: '',
+    operatorLabels: '',
+    boolOptions: '',
+    logicLabels: '',
+    selectPlaceholder: '',
+    searchPlaceholder: '',
+    selectFieldPlaceholder: '',
+    selectValuePlaceholder: '',
+    applyLabel: '',
+    removeLabel: '',
+    addConditionLabel: '',
+    addGroupLabel: '',
+    whereLabel: '',
+    rangeSeparatorLabel: '',
+    loadingLabel: '',
+    searchingLabel: '',
+    noResultsLabel: '',
+    pickOptionHint: '',
+    useValueTemplate: '',
+    selectedCountTemplate: '',
+    searchTimeoutMessage: '',
 };
 
 /**
@@ -63,7 +112,7 @@ class TwoColumnSelect {
      * @param {?function(string): Promise<{value: string, label: string}[]>} [config.onLoad] -
      *   Loader called once per expandable key, to fetch its full sub-option list.
      */
-    constructor({options, expandableKeys = [], placeholder = 'Select…', onLoad = null}) {
+    constructor({options, expandableKeys = [], placeholder = baSearchData.selectPlaceholder, onLoad = null}) {
         this.options = options;
         this.expandableKeys = new Set(expandableKeys);
         this.onLoad = onLoad;
@@ -169,7 +218,7 @@ class TwoColumnSelect {
         this.rightCol.innerHTML = '';
         const hint = document.createElement('p');
         hint.classList.add('ba-search-tcs-hint');
-        hint.textContent = 'Please click the option on the left.';
+        hint.textContent = baSearchData.pickOptionHint;
         this.rightCol.appendChild(hint);
     }
 
@@ -193,11 +242,11 @@ class TwoColumnSelect {
         const search = document.createElement('input');
         search.type = 'search';
         search.classList.add('ba-search-tcs-search');
-        search.placeholder = 'Search…';
+        search.placeholder = baSearchData.searchPlaceholder;
 
         const results = document.createElement('ul');
         results.classList.add('ba-search-tcs-results');
-        results.innerHTML = '<li class="ba-search-tcs-results-status">Loading…</li>';
+        results.innerHTML = `<li class="ba-search-tcs-results-status">${baSearchData.loadingLabel}</li>`;
 
         this.rightCol.append(search, results);
         search.focus();
@@ -206,7 +255,7 @@ class TwoColumnSelect {
             results.innerHTML = '';
 
             if(!items.length) {
-                results.innerHTML = '<li class="ba-search-tcs-results-status">No results</li>';
+                results.innerHTML = `<li class="ba-search-tcs-results-status">${baSearchData.noResultsLabel}</li>`;
                 return;
             }
 
@@ -316,9 +365,9 @@ class SearchableDropdown {
         options = null,
         onSearch = null,
         multiple = false,
-        placeholder = 'Select…',
-        searchPlaceholder = 'Search…',
-        applyLabel = 'Apply',
+        placeholder = baSearchData.selectPlaceholder,
+        searchPlaceholder = baSearchData.searchPlaceholder,
+        applyLabel = baSearchData.applyLabel,
         value = null,
     }) {
         this.multiple = multiple;
@@ -413,7 +462,7 @@ class SearchableDropdown {
      */
     async runSearch(query) {
         const token = ++this.searchToken;
-        this.list.innerHTML = '<li class="ba-search-dropdown-status">Searching…</li>';
+        this.list.innerHTML = `<li class="ba-search-dropdown-status">${baSearchData.searchingLabel}</li>`;
 
         try {
             const items = await this.onSearch(query) ?? [];
@@ -445,7 +494,7 @@ class SearchableDropdown {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.classList.add('ba-search-dropdown-option');
-            btn.textContent = `Use "${query}"`;
+            btn.textContent = baSearchData.useValueTemplate.replace('%s', query);
             btn.addEventListener('click', () => this.select(query, query));
             li.appendChild(btn);
             this.list.appendChild(li);
@@ -463,7 +512,7 @@ class SearchableDropdown {
         this.list.innerHTML = '';
 
         if(!items.length) {
-            this.list.innerHTML = '<li class="ba-search-dropdown-status">No results</li>';
+            this.list.innerHTML = `<li class="ba-search-dropdown-status">${baSearchData.noResultsLabel}</li>`;
             return;
         }
 
@@ -529,7 +578,7 @@ class SearchableDropdown {
 
     /** Updates the "N selected" footer text in multi-select mode. */
     updateSelectedCount() {
-        if(this.selectedCount) this.selectedCount.textContent = `${this.pending.size} selected`;
+        if(this.selectedCount) this.selectedCount.textContent = baSearchData.selectedCountTemplate.replace('%d', this.pending.size);
     }
 
     /** Refreshes the trigger button's text to reflect the current committed value(s). */
@@ -546,7 +595,7 @@ class SearchableDropdown {
         } else if(this.value.length === 1) {
             this.trigger.textContent = this.labelsByValue.get(this.value[0]) ?? this.value[0];
         } else {
-            this.trigger.textContent = `${this.value.length} selected`;
+            this.trigger.textContent = baSearchData.selectedCountTemplate.replace('%d', this.value.length);
         }
     }
 
@@ -748,44 +797,18 @@ class IconSelect {
 class FilterGroup {
     /**
      * Available operators per data type — the operator select repopulates from this whenever
-     * the condition's data type changes.
+     * the condition's data type changes. Built from baSearchData.operatorsByType (classification/
+     * order) and baSearchData.operatorLabels (display text), both sourced from
+     * includes/operators.php, so the query builder (includes/filter.php) and this UI can't drift
+     * apart on which operators exist or what they're called.
      * @type {Object<string, [string, string][]>}
      */
-    static OPERATORS = {
-        string: [
-            ['is', 'Is'],
-            ['is_not', 'Is Not'],
-            ['contains', 'Contains'],
-            ['contains_not', 'Does Not Contain'],
-            ['is_set', 'Is Set'],
-            ['not_set', 'Is Not Set'],
-        ],
-        number: [
-            ['equals', 'Equals'],
-            ['not_equals', 'Not Equals'],
-            ['greater_than', 'Greater Than'],
-            ['greater_than_or_equal', 'Greater Than or Equal To'],
-            ['less_than', 'Less Than'],
-            ['less_than_or_equal', 'Less Than or Equal To'],
-            ['between', 'Between'],
-            ['not_between', 'Not Between'],
-        ],
-        bool: [
-            ['is', 'Is'],
-        ],
-        date: [
-            ['last', 'Last'],
-            ['not_in_last', 'Not in the Last'],
-            ['between', 'Between'],
-            ['not_between', 'Not Between'],
-            ['on', 'On'],
-            ['not_on', 'Not On'],
-            ['before_last', 'Before the Last'],
-            ['before', 'Before'],
-            ['since', 'Since'],
-            ['in_next', 'In the Next'],
-        ],
-    };
+    static OPERATORS = Object.fromEntries(
+        Object.entries(baSearchData.operatorsByType).map(([type, codes]) => [
+            type,
+            codes.map(code => [code, baSearchData.operatorLabels[code]]),
+        ])
+    );
 
     /**
      * Per-field data — label, default data type, and the optional flags read below — keyed by
@@ -914,11 +937,12 @@ class FilterGroup {
         return FilterGroup.POST_PICKER_FIELDS.has(field) || FilterGroup.VALUE_LOOKUP_FIELDS.has(field);
     }
 
-    /** @type {[string, string][]} Fixed True/False choices for the bool data type. */
-    static BOOL_OPTIONS = [
-        ['1', 'True'],
-        ['0', 'False'],
-    ];
+    /**
+     * Fixed True/False choices for the bool data type. Sourced from baSearchData.boolOptions
+     * (see includes/operators.php's bool_options()).
+     * @type {[string, string][]}
+     */
+    static BOOL_OPTIONS = baSearchData.boolOptions;
 
     /**
      * @param {number} groupIndex - This group's position in `ba_search[groups]`, used to build
@@ -962,7 +986,7 @@ class FilterGroup {
         this.childrenEl = document.createElement('div');
         this.childrenEl.classList.add('ba-search-group-children');
 
-        const addConditionBtn = FilterGroup.createActionButton('+ Condition', () => this.addCondition(true));
+        const addConditionBtn = FilterGroup.createActionButton(baSearchData.addConditionLabel, () => this.addCondition(true));
         addConditionBtn.classList.add('ba-search-add-condition');
 
         this.footer = document.createElement('div');
@@ -1054,7 +1078,9 @@ class FilterGroup {
 
     /**
      * Builds the AND/OR toggle button shown between sibling conditions/groups; clicking it
-     * flips between the two values.
+     * flips between the two values. Displays baSearchData.logicLabels[value] but keeps
+     * `btn.dataset.operator` (and the value passed to `onChange`) as the literal 'AND'/'OR' that
+     * gets submitted — see includes/filter.php, which matches that value literally.
      * @param {string} initial - 'AND' or 'OR'.
      * @param {function(string): void} onChange - Called with the new value after a flip.
      * @returns {HTMLButtonElement}
@@ -1063,12 +1089,12 @@ class FilterGroup {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.classList.add('ba-search-group-operator', 'button');
-        btn.textContent = initial;
+        btn.textContent = baSearchData.logicLabels[initial] ?? initial;
         btn.dataset.operator = initial;
         btn.addEventListener('click', () => {
             const next = btn.dataset.operator === 'AND' ? 'OR' : 'AND';
             btn.dataset.operator = next;
-            btn.textContent = next;
+            btn.textContent = baSearchData.logicLabels[next] ?? next;
             onChange(next);
         });
         return btn;
@@ -1096,7 +1122,7 @@ class FilterGroup {
         const removeBtn = document.createElement('button');
         removeBtn.type = 'button';
         removeBtn.classList.add('ba-search-block-remove', 'button-link-delete');
-        removeBtn.setAttribute('aria-label', 'Remove');
+        removeBtn.setAttribute('aria-label', baSearchData.removeLabel);
         removeBtn.innerHTML = `<span class="ba-search-icon">${FilterGroup.REMOVE_ICON}</span>`;
         removeBtn.addEventListener('click', () => {
             target.remove();
@@ -1232,7 +1258,7 @@ class FilterGroup {
 
         const sep = document.createElement('span');
         sep.classList.add('ba-search-value-range-sep');
-        sep.textContent = 'and';
+        sep.textContent = baSearchData.rangeSeparatorLabel;
 
         wrapper.append(from, sep, to);
         return wrapper;
@@ -1361,7 +1387,7 @@ class FilterGroup {
         }
 
         if(response.status === 504) {
-            let message = 'This search took too long to run. Enter the value directly instead.';
+            let message = baSearchData.searchTimeoutMessage;
             try {
                 message = (await response.json())?.message ?? message;
             } catch {
@@ -1400,7 +1426,7 @@ class FilterGroup {
 
         const whereLabel = document.createElement('span');
         whereLabel.classList.add('ba-search-group-operator', 'ba-search-group-operator-label');
-        whereLabel.textContent = 'Where';
+        whereLabel.textContent = baSearchData.whereLabel;
 
         const logicInput = FilterGroup.buildHiddenInput(`${namePrefix}[logic]`, initialLogic);
         const operatorToggle = FilterGroup.createOperatorToggle(initialLogic, op => {
@@ -1415,7 +1441,7 @@ class FilterGroup {
             options: Object.fromEntries(Object.entries(FilterGroup.FIELD_OPTIONS)
                 .map(([field, option]) => [field, option.label])),
             expandableKeys: FilterGroup.EXPANDABLE_FIELDS,
-            placeholder: 'Select field…',
+            placeholder: baSearchData.selectFieldPlaceholder,
             onLoad: key => FilterGroup.fetchKeys(key, baSearchData.postType)
         });
         const fieldInput = FilterGroup.buildHiddenInput(`${namePrefix}[field]`);
@@ -1489,7 +1515,7 @@ class FilterGroup {
             const dataType = dataTypeSelect.value;
             const operator = operatorSelect.value;
             const metaKey = fieldSelect.metaKey;
-            const placeholder = 'Select value…';
+            const placeholder = baSearchData.selectValuePlaceholder;
 
             if(!field || needsSubKey || FilterGroup.NO_VALUE_OPERATORS.has(operator)) {
                 setValueWidget(FilterGroup.buildValueSelect());
@@ -1538,7 +1564,7 @@ class FilterGroup {
             if(FilterGroup.LOCAL_SEARCH_FIELDS.has(field)) {
                 const loading = document.createElement('span');
                 loading.classList.add('ba-search-value-loading');
-                loading.textContent = 'Loading…';
+                loading.textContent = baSearchData.loadingLabel;
                 setValueWidget(loading);
 
                 let items;
@@ -1795,7 +1821,7 @@ class BaSearch {
         this.groupsEl = document.createElement('div');
         this.groupsEl.classList.add('ba-search-groups');
 
-        const addGroupBtn = FilterGroup.createActionButton('+ Group', () => this.addGroup());
+        const addGroupBtn = FilterGroup.createActionButton(baSearchData.addGroupLabel, () => this.addGroup());
 
         const groupsData = BaSearch.orderedValues(BaSearch.parseSearchParams().groups);
         if(groupsData.length) {

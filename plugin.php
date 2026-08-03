@@ -14,7 +14,7 @@ namespace BetterAdminSearch;
  * Requires PHP:      8.1
  * Author:            Jaroslav Suhanek
  * Author URI:        https://wparcanum.com/
- * Text Domain:       ba-search
+ * Text Domain:       better-admin-search
  * License:           GPL v3
  * License URI:       http://www.gnu.org/licenses/gpl-3.0.txt
  */
@@ -82,13 +82,10 @@ class plugin {
 		
 		// Languages
 		$this->lang_dir   = trailingslashit($this->plugin_dir.'languages');
-		$this->textdomain = 'ba-search';
+		$this->textdomain = 'better-admin-search';
 		
 		// Assets
 		$this->assets_url = trailingslashit($this->plugin_url.'assets');
-		
-		// Settings
-		$this->option_name = 'ba_search_options';
 	}
 	
 	/**
@@ -109,11 +106,16 @@ class plugin {
 	}
 
 	/**
-	 * Wires up the plugin's WordPress hooks: enqueueing assets (and localizing the field data)
-	 * on the admin list screens, and applying the submitted `ba_search` filter (see
-	 * includes/filter.php) to the list table's query.
+	 * Wires up the plugin's WordPress hooks: loading translations, enqueueing assets (and
+	 * localizing the field data) on the admin list screens, and applying the submitted
+	 * `ba_search` filter (see includes/filter.php) to the list table's query.
 	 */
 	function actions(): void {
+		add_action('init', [
+			$this,
+			'load_textdomain'
+		]);
+
 		add_action('admin_enqueue_scripts', [
 			$this,
 			'admin_enqueue_scripts'
@@ -121,7 +123,19 @@ class plugin {
 
 		\BetterAdminSearch\Filter\bootstrap();
 	}
-	
+
+	/**
+	 * Loads translations for $this->textdomain from the plugin's own languages/ directory.
+	 *
+	 * Since WordPress.org hosts this plugin's translations itself (auto-loaded because
+	 * $this->textdomain matches the plugin's slug), this is a fallback for a translation not yet
+	 * available there — e.g. a .mo dropped into languages/ manually, or local development before
+	 * the plugin is live on .org.
+	 */
+	function load_textdomain(): void {
+		load_plugin_textdomain($this->textdomain, false, dirname($this->basename).'/languages');
+	}
+
 	/**
 	 * Enqueues the plugin's style/script on the post list screen and localizes everything
 	 * script.js needs to render the filter UI — the field list (from dropdown_options()),
@@ -153,9 +167,9 @@ class plugin {
 		$options = $this->dropdown_options($post_type);
 
 		wp_localize_script($this->basename.'-script', 'baSearchData', [
-			'filterBoxToggleLabel'       => __('Advanced Filters', 'ba-search'),
-			'filterBoxToggleCancelLabel' => __('Cancel', 'ba-search'),
-			'popupTitle'                 => __('Filters', 'ba-search'),
+			'filterBoxToggleLabel'       => __('Advanced Filters', 'better-admin-search'),
+			'filterBoxToggleCancelLabel' => __('Cancel', 'better-admin-search'),
+			'popupTitle'                 => __('Filters', 'better-admin-search'),
 			'fieldOptions'               => $options,
 			'postType'                   => $post_type,
 			'apiUrl'                     => get_rest_url(null, 'bas/v1/get_values'),
@@ -167,6 +181,29 @@ class plugin {
 			'rangeOperators'             => Operators\range_operators(),
 			'relativeDateOperators'      => Operators\relative_date_operators(),
 			'relativeDateUnits'          => array_map(fn($unit) => $unit['label'], Operators\relative_date_units()),
+			'operatorsByType'            => Operators\operators_by_type(),
+			'operatorLabels'             => Operators\operator_labels(),
+			'boolOptions'                => Operators\bool_options(),
+			'logicLabels'                => Operators\logic_labels(),
+			'selectPlaceholder'          => __('Select…', 'better-admin-search'),
+			'searchPlaceholder'          => __('Search…', 'better-admin-search'),
+			'selectFieldPlaceholder'     => __('Select field…', 'better-admin-search'),
+			'selectValuePlaceholder'     => __('Select value…', 'better-admin-search'),
+			'applyLabel'                 => __('Apply', 'better-admin-search'),
+			'removeLabel'                => __('Remove', 'better-admin-search'),
+			'addConditionLabel'          => __('+ Condition', 'better-admin-search'),
+			'addGroupLabel'              => __('+ Group', 'better-admin-search'),
+			'whereLabel'                 => __('Where', 'better-admin-search'),
+			'rangeSeparatorLabel'        => __('and', 'better-admin-search'),
+			'loadingLabel'               => __('Loading…', 'better-admin-search'),
+			'searchingLabel'             => __('Searching…', 'better-admin-search'),
+			'noResultsLabel'             => __('No results', 'better-admin-search'),
+			'pickOptionHint'             => __('Please click the option on the left.', 'better-admin-search'),
+			/* translators: %s: the search text the user typed, used verbatim as the value. */
+			'useValueTemplate'           => __('Use "%s"', 'better-admin-search'),
+			/* translators: %d: number of checked options in a multi-select dropdown. */
+			'selectedCountTemplate'      => __('%d selected', 'better-admin-search'),
+			'searchTimeoutMessage'       => __('This search took too long to run. Try a more specific search, or enter the value directly.', 'better-admin-search'),
 		]);
 	}
 	
@@ -202,56 +239,51 @@ class plugin {
 	 *               deliberately hides a built-in field).
 	 */
 	function dropdown_options(string $post_type): array {
+		$labels      = Operators\operator_labels();
 		$is_operator = [
-			[
-				'is',
-				__('Is', 'ba-search')
-			],
-			[
-				'is_not',
-				__('Is Not', 'ba-search')
-			]
+			['is', $labels['is']],
+			['is_not', $labels['is_not']],
 		];
 		
 		$options = [
 			'postmeta'    => [
-				'label'      => __('Custom Fields', 'ba-search'),
+				'label'      => __('Custom Fields', 'better-admin-search'),
 				'type'       => 'string',
 				'expandable' => true,
 			],
 			'date_query'  => [
-				'label' => __('Publish Date', 'ba-search'),
+				'label' => __('Publish Date', 'better-admin-search'),
 				'type'  => 'date'
 			],
 			'mod_date'    => [
-				'label' => __('Modification Date', 'ba-search'),
+				'label' => __('Modification Date', 'better-admin-search'),
 				'type'  => 'date'
 			],
 			'post_author' => [
-				'label'            => __('Post Author', 'ba-search'),
+				'label'            => __('Post Author', 'better-admin-search'),
 				'type'             => 'string',
 				'operatorOverride' => $is_operator,
 				'valueLookup'      => true,
 			],
 			'post_status' => [
-				'label'            => __('Post Status', 'ba-search'),
+				'label'            => __('Post Status', 'better-admin-search'),
 				'type'             => 'string',
 				'operatorOverride' => $is_operator,
 				'localSearch'      => true,
 			],
 			'post_name'   => [
-				'label'            => __('Post Slug', 'ba-search'),
+				'label'            => __('Post Slug', 'better-admin-search'),
 				'type'             => 'string',
 				'operatorOverride' => $is_operator,
 			],
 			'post_parent' => [
-				'label'            => __('Post Parent', 'ba-search'),
+				'label'            => __('Post Parent', 'better-admin-search'),
 				'type'             => 'number',
 				'operatorOverride' => $is_operator,
 				'postPicker'       => true,
 			],
 			'taxonomies'  => [
-				'label'       => __('Taxonomies', 'ba-search'),
+				'label'       => __('Taxonomies', 'better-admin-search'),
 				'type'        => 'string',
 				'expandable'  => true,
 				'valueLookup' => true,
@@ -272,10 +304,10 @@ class plugin {
 	 */
 	function data_types(): array {
 		return [
-			'string' => __('String', 'ba-search'),
-			'number' => __('Number', 'ba-search'),
-			'bool'   => __('Bool (True / False)', 'ba-search'),
-			'date'   => __('Date', 'ba-search'),
+			'string' => __('String', 'better-admin-search'),
+			'number' => __('Number', 'better-admin-search'),
+			'bool'   => __('Bool (True / False)', 'better-admin-search'),
+			'date'   => __('Date', 'better-admin-search'),
 		];
 	}
 }

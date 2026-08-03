@@ -1,0 +1,268 @@
+# Copyright (C) 2026 Jaroslav Suhanek
+# This file is distributed under the GPL v3.
+msgid ""
+msgstr ""
+"Project-Id-Version: Better Admin Search 0.0.1\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/better-admin-search\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2026-08-03T00:00:00+00:00\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"X-Domain: better-admin-search\n"
+
+#: plugin.php:173
+msgid "Advanced Filters"
+msgstr ""
+
+#: plugin.php:174
+msgid "Cancel"
+msgstr ""
+
+#: plugin.php:175
+msgid "Filters"
+msgstr ""
+
+#: plugin.php:191
+msgid "Select…"
+msgstr ""
+
+#: plugin.php:192
+msgid "Search…"
+msgstr ""
+
+#: plugin.php:193
+msgid "Select field…"
+msgstr ""
+
+#: plugin.php:194
+msgid "Select value…"
+msgstr ""
+
+#: plugin.php:195
+msgid "Apply"
+msgstr ""
+
+#: plugin.php:196
+msgid "Remove"
+msgstr ""
+
+#: plugin.php:197
+msgid "+ Condition"
+msgstr ""
+
+#: plugin.php:198
+msgid "+ Group"
+msgstr ""
+
+#: plugin.php:199
+msgid "Where"
+msgstr ""
+
+#: plugin.php:200
+msgid "and"
+msgstr ""
+
+#: plugin.php:201
+msgid "Loading…"
+msgstr ""
+
+#: plugin.php:202
+msgid "Searching…"
+msgstr ""
+
+#: plugin.php:203
+msgid "No results"
+msgstr ""
+
+#: plugin.php:204
+msgid "Please click the option on the left."
+msgstr ""
+
+#. translators: %s: the search text the user typed, used verbatim as the value.
+#: plugin.php:206
+msgid "Use \"%s\""
+msgstr ""
+
+#. translators: %d: number of checked options in a multi-select dropdown.
+#: plugin.php:208
+msgid "%d selected"
+msgstr ""
+
+#: plugin.php:209 includes/query.php:93
+msgid "This search took too long to run. Try a more specific search, or enter the value directly."
+msgstr ""
+
+#: plugin.php:253
+msgid "Custom Fields"
+msgstr ""
+
+#: plugin.php:258
+msgid "Publish Date"
+msgstr ""
+
+#: plugin.php:262
+msgid "Modification Date"
+msgstr ""
+
+#: plugin.php:266
+msgid "Post Author"
+msgstr ""
+
+#: plugin.php:272
+msgid "Post Status"
+msgstr ""
+
+#: plugin.php:278
+msgid "Post Slug"
+msgstr ""
+
+#: plugin.php:283
+msgid "Post Parent"
+msgstr ""
+
+#: plugin.php:289
+msgid "Taxonomies"
+msgstr ""
+
+#: plugin.php:310
+msgid "String"
+msgstr ""
+
+#: plugin.php:311
+msgid "Number"
+msgstr ""
+
+#: plugin.php:312
+msgid "Bool (True / False)"
+msgstr ""
+
+#: plugin.php:313
+msgid "Date"
+msgstr ""
+
+#: includes/operators.php:54
+msgid "Days"
+msgstr ""
+
+#: includes/operators.php:55
+msgid "Weeks"
+msgstr ""
+
+#: includes/operators.php:56
+msgid "Months"
+msgstr ""
+
+#: includes/operators.php:57
+msgid "Years"
+msgstr ""
+
+#: includes/operators.php:92
+msgid "Is"
+msgstr ""
+
+#: includes/operators.php:93
+msgid "Is Not"
+msgstr ""
+
+#: includes/operators.php:94
+msgid "Contains"
+msgstr ""
+
+#: includes/operators.php:95
+msgid "Does Not Contain"
+msgstr ""
+
+#: includes/operators.php:96
+msgid "Is Set"
+msgstr ""
+
+#: includes/operators.php:97
+msgid "Is Not Set"
+msgstr ""
+
+#: includes/operators.php:98
+msgid "Equals"
+msgstr ""
+
+#: includes/operators.php:99
+msgid "Not Equals"
+msgstr ""
+
+#: includes/operators.php:100
+msgid "Greater Than"
+msgstr ""
+
+#: includes/operators.php:101
+msgid "Greater Than or Equal To"
+msgstr ""
+
+#: includes/operators.php:102
+msgid "Less Than"
+msgstr ""
+
+#: includes/operators.php:103
+msgid "Less Than or Equal To"
+msgstr ""
+
+#: includes/operators.php:104
+msgid "Between"
+msgstr ""
+
+#: includes/operators.php:105
+msgid "Not Between"
+msgstr ""
+
+#: includes/operators.php:106
+msgid "Last"
+msgstr ""
+
+#: includes/operators.php:107
+msgid "Not in the Last"
+msgstr ""
+
+#: includes/operators.php:108
+msgid "On"
+msgstr ""
+
+#: includes/operators.php:109
+msgid "Not On"
+msgstr ""
+
+#: includes/operators.php:110
+msgid "Before the Last"
+msgstr ""
+
+#: includes/operators.php:111
+msgid "Before"
+msgstr ""
+
+#: includes/operators.php:112
+msgid "Since"
+msgstr ""
+
+#: includes/operators.php:113
+msgid "In the Next"
+msgstr ""
+
+#: includes/operators.php:127
+msgid "True"
+msgstr ""
+
+#: includes/operators.php:128
+msgid "False"
+msgstr ""
+
+#: includes/operators.php:141
+msgid "AND"
+msgstr ""
+
+#: includes/operators.php:142
+msgid "OR"
+msgstr ""
+
+#: includes/helpers.php:232 includes/helpers.php:254
+msgid "(no title)"
+msgstr ""
