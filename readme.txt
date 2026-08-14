@@ -43,7 +43,15 @@ Only users with the `manage_options` capability (administrators, by default) see
 
 No. It adds a separate, structured filter box alongside the existing search box and list table views.
 
+== Future Features ==
+
+Ideas being considered for future releases:
+
+* Saved filters — name and store a filter combination for one-click reuse, instead of relying on bookmarking the URL
+* Export matching results to CSV
+* Extend advanced filtering to the users and comments list screens
+
 == Changelog ==
 
-= 0.0.1 =
+= 1.0.0 =
 * Initial release.

@@ -46,19 +46,21 @@ function bootstrap(): void {
 /**
  * Reads $_GET['ba_search'] and, if it describes anything valid, adds the JOIN/WHERE (and, if
  * needed, DISTINCT) it builds to the admin list table's query via 'posts_join' / 'posts_where' /
- * 'posts_distinct'. A no-op on anything but the post list screen's main query, or when
- * `ba_search` is absent, malformed, or empty of usable conditions.
+ * 'posts_distinct'. A no-op on anything but the post list screen's main query, for a user
+ * lacking manage_options (the same capability the REST endpoints in includes/endpoints.php
+ * require to build a condition in the first place), or when `ba_search` is absent, malformed,
+ * or empty of usable conditions.
  *
  * @param \WP_Query $query
  */
 function apply_to_query(\WP_Query $query): void {
 	global $pagenow;
 
-	if(!is_admin() || $pagenow !== 'edit.php' || !$query->is_main_query()) {
+	if(!is_admin() || $pagenow !== 'edit.php' || !$query->is_main_query() || !current_user_can('manage_options')) {
 		return;
 	}
 
-	$raw = $_GET['ba_search'] ?? null;
+	$raw = wp_unslash($_GET['ba_search'] ?? null);
 
 	if(!is_array($raw) || !is_array($raw['groups'] ?? null)) {
 		return;

@@ -8,11 +8,11 @@ namespace BetterAdminSearch;
  *
  * Plugin Name:       Better Admin Search
  * Plugin URI:        https://github.com/Rustynote/better-admin-search
- * Description:       Adds advanced filters to the post/page list screens, letting you combine multiple conditions with AND/OR logic to narrow results fast.
+ * Description:       Adds an advanced filter box to the post and page list screens, letting you combine multiple conditions with AND/OR logic to narrow results fast — no query writing required. Filter by custom fields (with string, number, boolean, or date comparisons), taxonomies, publish/modification date (including relative ranges like "in the last 7 days"), post author, status, slug, and parent. Filtered views are reflected in the URL, so they can be bookmarked or shared, and developers can add their own fields via a handful of filters. Restricted to users with the manage_options capability.
  * Version:           1.0.0
  * Requires at least: 5.2
  * Requires PHP:      8.1
- * Author:            Rustynote
+ * Author:            Jaroslav Suhanek
  * Author URI:        https://wparcanum.com/
  * Text Domain:       better-admin-search
  * License:           GPL v3
@@ -73,7 +73,7 @@ class plugin {
 	 * — $assets_url and $basename for the enqueued style/script).
 	 */
 	function vars(): void {
-		$this->version = '0.0.1';
+		$this->version = '1.0.0';
 		
 		// Paths
 		$this->file       = __FILE__;
@@ -149,7 +149,9 @@ class plugin {
 	 *
 	 * Hooked to 'admin_enqueue_scripts', which fires on every wp-admin page; bails out early
 	 * for everything except edit.php (the post list screen), which is the only place the
-	 * filter UI is rendered.
+	 * filter UI is rendered, and for users lacking manage_options — the same capability the
+	 * REST endpoints in includes/endpoints.php require, so the filter UI never appears for a
+	 * user who couldn't actually use it.
 	 *
 	 * 'editableDataTypeFields' (which fields let the user override the default data type from
 	 * dropdown_options()) defaults to just 'postmeta', but is filterable via
@@ -159,11 +161,11 @@ class plugin {
 	 * @param string $hook The current admin page's hook suffix, e.g. 'edit.php' or 'index.php'.
 	 */
 	function admin_enqueue_scripts(string $hook): void {
-		if($hook != 'edit.php') {
+		if($hook != 'edit.php' || !current_user_can('manage_options')) {
 			return;
 		}
 
-		$post_type = $_GET['post_type'] ?? 'post';
+		$post_type = isset($_GET['post_type']) ? sanitize_key(wp_unslash($_GET['post_type'])) : 'post';
 
 		wp_enqueue_style($this->basename.'-style', $this->assets_url.'style.css', [], $this->version);
 		wp_enqueue_script($this->basename.'-script', $this->assets_url.'script.js', [], $this->version);
