@@ -60,6 +60,10 @@ function apply_to_query(\WP_Query $query): void {
 		return;
 	}
 
+	// This is a read-only GET filter for the admin list table (like core's own `?s=` search box),
+	// not a state-changing action, so a nonce isn't required; every value is type-checked and
+	// escaped via $wpdb->prepare() downstream in build_condition_sql() before it reaches SQL.
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 	$raw = wp_unslash($_GET['ba_search'] ?? null);
 
 	if(!is_array($raw) || !is_array($raw['groups'] ?? null)) {
@@ -212,7 +216,10 @@ function build_exact_condition(string $column, string $format, string $operator,
 		return null;
 	}
 
-	$sql = $wpdb->prepare("$column = $format", $value);
+	// $format is always the caller's own hardcoded '%d' or '%s' (see build_condition_sql()), never
+	// user input, so this is a fixed placeholder per call site rather than dynamic SQL.
+	// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $column is a fixed, hardcoded column identifier, not user input.
+	$sql = $format === '%d' ? $wpdb->prepare("$column = %d", $value) : $wpdb->prepare("$column = %s", $value);
 
 	return ['join' => '', 'where' => $operator === 'is_not' ? "NOT ($sql)" : $sql, 'distinct' => false];
 }
@@ -277,12 +284,21 @@ function build_date_condition(string $column, string $operator, mixed $value): ?
 			return null;
 		}
 
+		// $unit comes from the fixed allow-list in Operators\relative_date_units() (looked up by
+		// key just above, with an unrecognized key already rejected), never raw user input, so
+		// it's a fixed identifier fragment rather than dynamic SQL.
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $unit is validated against a fixed allow-list above.
 		$cutoff = $wpdb->prepare("DATE_SUB(NOW(), INTERVAL %d $unit)", $amount);
 
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $column is a fixed, hardcoded column identifier; $unit is validated against a fixed allow-list above.
+		$sql = $operator === 'in_next' ? $wpdb->prepare("$column BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL %d $unit)", $amount) : null;
+
+		// $column is a fixed, hardcoded column identifier and $cutoff already went through
+		// $wpdb->prepare() above, so these are safe string comparisons, not raw dynamic SQL.
 		return match($operator) {
-			'last'    => ['join' => '', 'where' => "$column >= $cutoff", 'distinct' => false],
-			'in_next' => ['join' => '', 'where' => $wpdb->prepare("$column BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL %d $unit)", $amount), 'distinct' => false],
-			default   => ['join' => '', 'where' => "$column < $cutoff", 'distinct' => false], // not_in_last / before_last
+			'last'    => ['join' => '', 'where' => "$column >= $cutoff", 'distinct' => false], // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			'in_next' => ['join' => '', 'where' => $sql, 'distinct' => false],
+			default   => ['join' => '', 'where' => "$column < $cutoff", 'distinct' => false], // not_in_last / before_last -- phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		};
 	}
 
@@ -291,6 +307,7 @@ function build_date_condition(string $column, string $operator, mixed $value): ?
 			return null;
 		}
 
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $column is a fixed, hardcoded column identifier, not user input.
 		$sql = $wpdb->prepare("DATE($column) BETWEEN %s AND %s", $value['from'], $value['to']);
 
 		return ['join' => '', 'where' => $operator === 'not_between' ? "NOT ($sql)" : $sql, 'distinct' => false];
@@ -300,13 +317,16 @@ function build_date_condition(string $column, string $operator, mixed $value): ?
 		return null;
 	}
 
-	return match($operator) {
-		'on'     => ['join' => '', 'where' => $wpdb->prepare("DATE($column) = %s", $value), 'distinct' => false],
-		'not_on' => ['join' => '', 'where' => $wpdb->prepare("DATE($column) != %s", $value), 'distinct' => false],
-		'before' => ['join' => '', 'where' => $wpdb->prepare("DATE($column) < %s", $value), 'distinct' => false],
-		'since'  => ['join' => '', 'where' => $wpdb->prepare("DATE($column) >= %s", $value), 'distinct' => false],
+	// $column is a fixed, hardcoded column identifier, not user input, in every arm below.
+	$sql = match($operator) {
+		'on'     => $wpdb->prepare("DATE($column) = %s", $value), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		'not_on' => $wpdb->prepare("DATE($column) != %s", $value), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		'before' => $wpdb->prepare("DATE($column) < %s", $value), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		'since'  => $wpdb->prepare("DATE($column) >= %s", $value), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		default  => null,
 	};
+
+	return $sql === null ? null : ['join' => '', 'where' => $sql, 'distinct' => false];
 }
 
 /**
@@ -330,8 +350,10 @@ function build_date_condition(string $column, string $operator, mixed $value): ?
 function build_meta_condition(string $meta_key, string $data_type, string $operator, mixed $value, int &$alias_counter): ?array {
 	global $wpdb;
 
+	// $alias is generated above from an internal counter, never user input, so it's a fixed
+	// identifier fragment rather than dynamic SQL.
 	$alias = 'ba_meta_'.($alias_counter++);
-	$join  = $wpdb->prepare(" LEFT JOIN {$wpdb->postmeta} AS $alias ON ($alias.post_id = {$wpdb->posts}.ID AND $alias.meta_key = %s)", $meta_key);
+	$join  = $wpdb->prepare(" LEFT JOIN {$wpdb->postmeta} AS $alias ON ($alias.post_id = {$wpdb->posts}.ID AND $alias.meta_key = %s)", $meta_key); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 	if(in_array($operator, Operators\no_value_operators(), true)) {
 		$where = $operator === 'is_set' ? "$alias.meta_value IS NOT NULL" : "$alias.meta_value IS NULL";
@@ -365,7 +387,7 @@ function build_meta_condition(string $meta_key, string $data_type, string $opera
 				return null;
 			}
 
-			$sql   = $wpdb->prepare("$column BETWEEN %f AND %f", $value['from'], $value['to']);
+			$sql   = $wpdb->prepare("$column BETWEEN %f AND %f", $value['from'], $value['to']); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $column is a fixed CAST(...) expression built above, not user input.
 			$where = $operator === 'not_between' ? "($absent OR NOT ($sql))" : $sql;
 
 			return ['join' => $join, 'where' => $where, 'distinct' => true];
@@ -385,7 +407,7 @@ function build_meta_condition(string $meta_key, string $data_type, string $opera
 			return null;
 		}
 
-		$sql   = $wpdb->prepare("$column $comparator %f", $value);
+		$sql   = $wpdb->prepare("$column $comparator %f", $value); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $column is a fixed CAST(...) expression, $comparator a fixed allow-listed operator built above, neither user input.
 		$where = $operator === 'not_equals' ? "($absent OR $sql)" : $sql;
 
 		return ['join' => $join, 'where' => $where, 'distinct' => true];
@@ -396,7 +418,7 @@ function build_meta_condition(string $meta_key, string $data_type, string $opera
 			return null;
 		}
 
-		return ['join' => $join, 'where' => $wpdb->prepare("$alias.meta_value = %s", $value), 'distinct' => true];
+		return ['join' => $join, 'where' => $wpdb->prepare("$alias.meta_value = %s", $value), 'distinct' => true]; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $alias is a fixed identifier generated above, not user input.
 	}
 
 	// string
@@ -405,7 +427,7 @@ function build_meta_condition(string $meta_key, string $data_type, string $opera
 	}
 
 	if(in_array($operator, ['contains', 'contains_not'], true)) {
-		$sql   = $wpdb->prepare("$alias.meta_value LIKE %s", '%'.$wpdb->esc_like($value).'%');
+		$sql   = $wpdb->prepare("$alias.meta_value LIKE %s", '%'.$wpdb->esc_like($value).'%'); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $alias is a fixed identifier generated above, not user input.
 		$where = $operator === 'contains_not' ? "($absent OR NOT ($sql))" : $sql;
 
 		return ['join' => $join, 'where' => $where, 'distinct' => true];
@@ -415,7 +437,7 @@ function build_meta_condition(string $meta_key, string $data_type, string $opera
 		return null;
 	}
 
-	$sql   = $wpdb->prepare("$alias.meta_value = %s", $value);
+	$sql   = $wpdb->prepare("$alias.meta_value = %s", $value); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $alias is a fixed identifier generated above, not user input.
 	$where = $operator === 'is_not' ? "($absent OR NOT ($sql))" : $sql;
 
 	return ['join' => $join, 'where' => $where, 'distinct' => true];

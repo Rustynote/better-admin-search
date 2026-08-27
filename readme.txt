@@ -2,7 +2,7 @@
 Contributors: rustynote
 Tags: search, filter, admin, custom fields, taxonomy
 Requires at least: 5.2
-Tested up to: 7.0
+Tested up to: 7.1
 Requires PHP: 8.1
 Stable tag: 1.0.0
 License: GPL v3

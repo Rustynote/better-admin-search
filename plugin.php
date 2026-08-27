@@ -32,7 +32,6 @@ class plugin {
 	private string $plugin_url;
 	private string $includes_dir;
 	private string $lang_dir;
-	private string $textdomain;
 	private string $assets_url;
 
 	// Instantiated only via init(); nothing to set up here that vars()/includes()/actions()
@@ -85,8 +84,7 @@ class plugin {
 		$this->includes_dir = trailingslashit($this->plugin_dir.'includes');
 		
 		// Languages
-		$this->lang_dir   = trailingslashit($this->plugin_dir.'languages');
-		$this->textdomain = 'better-admin-search';
+		$this->lang_dir = trailingslashit($this->plugin_dir.'languages');
 		
 		// Assets
 		$this->assets_url = trailingslashit($this->plugin_url.'assets');
@@ -110,34 +108,20 @@ class plugin {
 	}
 
 	/**
-	 * Wires up the plugin's WordPress hooks: loading translations, enqueueing assets (and
-	 * localizing the field data) on the admin list screens, and applying the submitted
-	 * `ba_search` filter (see includes/filter.php) to the list table's query.
+	 * Wires up the plugin's WordPress hooks: enqueueing assets (and localizing the field data) on
+	 * the admin list screens, and applying the submitted `ba_search` filter (see
+	 * includes/filter.php) to the list table's query.
+	 *
+	 * Translations aren't loaded here: WordPress.org hosts and auto-loads this plugin's
+	 * translations itself, since its Text Domain matches its slug.
 	 */
 	function actions(): void {
-		add_action('init', [
-			$this,
-			'load_textdomain'
-		]);
-
 		add_action('admin_enqueue_scripts', [
 			$this,
 			'admin_enqueue_scripts'
 		]);
 
 		\BetterAdminSearch\Filter\bootstrap();
-	}
-
-	/**
-	 * Loads translations for $this->textdomain from the plugin's own languages/ directory.
-	 *
-	 * Since WordPress.org hosts this plugin's translations itself (auto-loaded because
-	 * $this->textdomain matches the plugin's slug), this is a fallback for a translation not yet
-	 * available there — e.g. a .mo dropped into languages/ manually, or local development before
-	 * the plugin is live on .org.
-	 */
-	function load_textdomain(): void {
-		load_plugin_textdomain($this->textdomain, false, dirname($this->basename).'/languages');
 	}
 
 	/**
@@ -165,10 +149,14 @@ class plugin {
 			return;
 		}
 
+		// Read-only GET param that just picks which post type's list screen this is (like core's
+		// own use of $_GET['post_type'] to render edit.php) — nothing is changed, so no nonce is
+		// needed; the value is sanitized via sanitize_key() before use.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$post_type = isset($_GET['post_type']) ? sanitize_key(wp_unslash($_GET['post_type'])) : 'post';
 
 		wp_enqueue_style($this->basename.'-style', $this->assets_url.'style.css', [], $this->version);
-		wp_enqueue_script($this->basename.'-script', $this->assets_url.'script.js', [], $this->version);
+		wp_enqueue_script($this->basename.'-script', $this->assets_url.'script.js', [], $this->version, true);
 
 		$options = $this->dropdown_options($post_type);
 
@@ -350,8 +338,11 @@ function is_rest_request(): bool {
 	// This runs before the 'parse_request' action, so the REST_REQUEST
 	// constant isn't defined yet even for an actual REST request.
 	$rest_prefix = trailingslashit(rest_get_url_prefix());
-	
-	return str_contains($_SERVER['REQUEST_URI'], $rest_prefix);
+	$request_uri = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI']));
+
+	// str_contains() would need WordPress 5.9's polyfill on PHP < 8.0, but this plugin already
+	// requires PHP 8.1 (see the file header), where it's always natively available.
+	return strpos($request_uri, $rest_prefix) !== false;
 }
 
 // Load plugin only in wp-admin or on REST API requests; skip the frontend.

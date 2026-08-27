@@ -46,7 +46,18 @@ function get_post_type_taxonomies(string $post_type): array {
 function get_postmeta_keys(): array {
 	global $wpdb;
 
-	$keys = $wpdb->get_col("SELECT DISTINCT meta_key FROM {$wpdb->postmeta} ORDER BY meta_key ASC");
+	$cache_key = 'ba_search_postmeta_keys';
+	$keys      = wp_cache_get($cache_key, 'better-admin-search');
+
+	if($keys === false) {
+		// No core WP API returns the distinct set of meta_key values in use; meta_key has an
+		// index (see the docblock above), so this DISTINCT scan is cheap even on a large
+		// postmeta table.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+		$keys = $wpdb->get_col("SELECT DISTINCT meta_key FROM {$wpdb->postmeta} ORDER BY meta_key ASC");
+
+		wp_cache_set($cache_key, $keys, 'better-admin-search', 5 * MINUTE_IN_SECONDS);
+	}
 
 	return array_map(fn($key) => [
 		'value' => $key,
