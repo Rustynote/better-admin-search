@@ -2,8 +2,8 @@
 # This file is distributed under the GPL v3.
 msgid ""
 msgstr ""
-"Project-Id-Version: Better Admin Search 0.0.1\n"
-"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/better-admin-search\n"
+"Project-Id-Version: Advanced Admin Filters 1.0.0\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/advanced-admin-filters\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
@@ -11,7 +11,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "POT-Creation-Date: 2026-08-03T00:00:00+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"X-Domain: better-admin-search\n"
+"X-Domain: advanced-admin-filters\n"
 
 #: plugin.php:173
 msgid "Advanced Filters"

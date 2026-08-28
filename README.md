@@ -1,4 +1,4 @@
-# Better Admin Search
+# Advanced Admin Filters
 
 Adds an advanced filter box to the WordPress admin post/page list screens, letting you combine multiple conditions with AND/OR logic to narrow results fast.
 
@@ -11,7 +11,7 @@ Filter by custom fields (postmeta), taxonomies, publish/modification date (inclu
 
 ## Installation
 
-1. Copy the plugin into `wp-content/plugins/better-admin-search`.
+1. Copy the plugin into `wp-content/plugins/advanced-admin-filters`.
 2. Activate it under Plugins in wp-admin.
 3. Go to Posts (or any post type's list screen) and click **Advanced Filters**.
 

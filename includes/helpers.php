@@ -244,7 +244,7 @@ function get_post_parents(string $post_type, string $search = '', ?string $value
 
 		return $post ? [[
 			'value' => (string) $post->ID,
-			'label' => ($post->post_title !== '' ? $post->post_title : __('(no title)', 'better-admin-search')).' (#'.$post->ID.')'
+			'label' => ($post->post_title !== '' ? $post->post_title : __('(no title)', 'advanced-admin-filters')).' (#'.$post->ID.')'
 		]] : [];
 	}
 
@@ -266,7 +266,7 @@ function get_post_parents(string $post_type, string $search = '', ?string $value
 	
 	return array_map(fn($row) => [
 		'value' => (string) $row->ID,
-		'label' => ($row->post_title !== '' ? $row->post_title : __('(no title)', 'better-admin-search')).' (#'.$row->ID.')'
+		'label' => ($row->post_title !== '' ? $row->post_title : __('(no title)', 'advanced-admin-filters')).' (#'.$row->ID.')'
 	], $rows);
 }
 

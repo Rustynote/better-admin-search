@@ -55,10 +55,10 @@ function relative_date_operators(): array {
  */
 function relative_date_units(): array {
 	return [
-		'days'   => ['label' => __('Days', 'better-admin-search'), 'sql' => 'DAY'],
-		'weeks'  => ['label' => __('Weeks', 'better-admin-search'), 'sql' => 'WEEK'],
-		'months' => ['label' => __('Months', 'better-admin-search'), 'sql' => 'MONTH'],
-		'years'  => ['label' => __('Years', 'better-admin-search'), 'sql' => 'YEAR'],
+		'days'   => ['label' => __('Days', 'advanced-admin-filters'), 'sql' => 'DAY'],
+		'weeks'  => ['label' => __('Weeks', 'advanced-admin-filters'), 'sql' => 'WEEK'],
+		'months' => ['label' => __('Months', 'advanced-admin-filters'), 'sql' => 'MONTH'],
+		'years'  => ['label' => __('Years', 'advanced-admin-filters'), 'sql' => 'YEAR'],
 	];
 }
 
@@ -93,28 +93,28 @@ function operators_by_type(): array {
  */
 function operator_labels(): array {
 	return [
-		'is'                    => __('Is', 'better-admin-search'),
-		'is_not'                => __('Is Not', 'better-admin-search'),
-		'contains'              => __('Contains', 'better-admin-search'),
-		'contains_not'          => __('Does Not Contain', 'better-admin-search'),
-		'is_set'                => __('Is Set', 'better-admin-search'),
-		'not_set'               => __('Is Not Set', 'better-admin-search'),
-		'equals'                => __('Equals', 'better-admin-search'),
-		'not_equals'            => __('Not Equals', 'better-admin-search'),
-		'greater_than'          => __('Greater Than', 'better-admin-search'),
-		'greater_than_or_equal' => __('Greater Than or Equal To', 'better-admin-search'),
-		'less_than'             => __('Less Than', 'better-admin-search'),
-		'less_than_or_equal'    => __('Less Than or Equal To', 'better-admin-search'),
-		'between'               => __('Between', 'better-admin-search'),
-		'not_between'           => __('Not Between', 'better-admin-search'),
-		'last'                  => __('Last', 'better-admin-search'),
-		'not_in_last'           => __('Not in the Last', 'better-admin-search'),
-		'on'                    => __('On', 'better-admin-search'),
-		'not_on'                => __('Not On', 'better-admin-search'),
-		'before_last'           => __('Before the Last', 'better-admin-search'),
-		'before'                => __('Before', 'better-admin-search'),
-		'since'                 => __('Since', 'better-admin-search'),
-		'in_next'               => __('In the Next', 'better-admin-search'),
+		'is'                    => __('Is', 'advanced-admin-filters'),
+		'is_not'                => __('Is Not', 'advanced-admin-filters'),
+		'contains'              => __('Contains', 'advanced-admin-filters'),
+		'contains_not'          => __('Does Not Contain', 'advanced-admin-filters'),
+		'is_set'                => __('Is Set', 'advanced-admin-filters'),
+		'not_set'               => __('Is Not Set', 'advanced-admin-filters'),
+		'equals'                => __('Equals', 'advanced-admin-filters'),
+		'not_equals'            => __('Not Equals', 'advanced-admin-filters'),
+		'greater_than'          => __('Greater Than', 'advanced-admin-filters'),
+		'greater_than_or_equal' => __('Greater Than or Equal To', 'advanced-admin-filters'),
+		'less_than'             => __('Less Than', 'advanced-admin-filters'),
+		'less_than_or_equal'    => __('Less Than or Equal To', 'advanced-admin-filters'),
+		'between'               => __('Between', 'advanced-admin-filters'),
+		'not_between'           => __('Not Between', 'advanced-admin-filters'),
+		'last'                  => __('Last', 'advanced-admin-filters'),
+		'not_in_last'           => __('Not in the Last', 'advanced-admin-filters'),
+		'on'                    => __('On', 'advanced-admin-filters'),
+		'not_on'                => __('Not On', 'advanced-admin-filters'),
+		'before_last'           => __('Before the Last', 'advanced-admin-filters'),
+		'before'                => __('Before', 'advanced-admin-filters'),
+		'since'                 => __('Since', 'advanced-admin-filters'),
+		'in_next'               => __('In the Next', 'advanced-admin-filters'),
 	];
 }
 
@@ -128,8 +128,8 @@ function operator_labels(): array {
  */
 function bool_options(): array {
 	return [
-		['1', __('True', 'better-admin-search')],
-		['0', __('False', 'better-admin-search')],
+		['1', __('True', 'advanced-admin-filters')],
+		['0', __('False', 'advanced-admin-filters')],
 	];
 }
 
@@ -142,7 +142,7 @@ function bool_options(): array {
  */
 function logic_labels(): array {
 	return [
-		'AND' => __('AND', 'better-admin-search'),
-		'OR'  => __('OR', 'better-admin-search'),
+		'AND' => __('AND', 'advanced-admin-filters'),
+		'OR'  => __('OR', 'advanced-admin-filters'),
 	];
 }
