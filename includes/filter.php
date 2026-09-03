@@ -61,10 +61,10 @@ function apply_to_query(\WP_Query $query): void {
 	}
 
 	// This is a read-only GET filter for the admin list table (like core's own `?s=` search box),
-	// not a state-changing action, so a nonce isn't required; every value is type-checked and
-	// escaped via $wpdb->prepare() downstream in build_condition_sql() before it reaches SQL.
-	// phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+	// not a state-changing action, so a nonce isn't required.
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended
 	$raw = wp_unslash($_GET['ba_search'] ?? null);
+	$raw = is_array($raw) ? sanitize_search_input($raw) : null;
 
 	if(!is_array($raw) || !is_array($raw['groups'] ?? null)) {
 		return;
@@ -83,6 +83,27 @@ function apply_to_query(\WP_Query $query): void {
 	if($built['distinct']) {
 		add_filter('posts_distinct', fn() => 'DISTINCT');
 	}
+}
+
+/**
+ * Recursively sanitizes every scalar leaf of the `ba_search` GET input with
+ * sanitize_text_field(), so nothing built from it — including the raw $meta_key/$data_type/
+ * $operator/$value a 'ba_search_build_condition' filter callback receives for an unrecognized
+ * field (see build_condition_sql()) — reaches third-party code unsanitized. Array keys (group/
+ * condition indexes, 'from'/'to', 'amount'/'unit', ...) are structural and left alone; every
+ * value still goes through $wpdb->prepare() downstream regardless.
+ *
+ * @param array $input
+ * @return array
+ */
+function sanitize_search_input(array $input): array {
+	return array_map(function($value) {
+		if(is_array($value)) {
+			return sanitize_search_input($value);
+		}
+
+		return is_scalar($value) ? sanitize_text_field((string) $value) : null;
+	}, $input);
 }
 
 /**

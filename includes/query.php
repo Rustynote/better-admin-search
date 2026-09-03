@@ -94,5 +94,5 @@ function is_timeout(): bool {
  * @return \WP_Error
  */
 function timeout_error(): \WP_Error {
-	return new \WP_Error('ba_search_query_timeout', __('This search took too long to run. Try a more specific search, or enter the value directly.', 'advanced-admin-filters'), ['status' => 504]);
+	return new \WP_Error('ba_search_query_timeout', __('This search took too long to run. Try a more specific search, or enter the value directly.', 'arcanum-admin-query-filters'), ['status' => 504]);
 }

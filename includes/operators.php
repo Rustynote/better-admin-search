@@ -55,10 +55,10 @@ function relative_date_operators(): array {
  */
 function relative_date_units(): array {
 	return [
-		'days'   => ['label' => __('Days', 'advanced-admin-filters'), 'sql' => 'DAY'],
-		'weeks'  => ['label' => __('Weeks', 'advanced-admin-filters'), 'sql' => 'WEEK'],
-		'months' => ['label' => __('Months', 'advanced-admin-filters'), 'sql' => 'MONTH'],
-		'years'  => ['label' => __('Years', 'advanced-admin-filters'), 'sql' => 'YEAR'],
+		'days'   => ['label' => __('Days', 'arcanum-admin-query-filters'), 'sql' => 'DAY'],
+		'weeks'  => ['label' => __('Weeks', 'arcanum-admin-query-filters'), 'sql' => 'WEEK'],
+		'months' => ['label' => __('Months', 'arcanum-admin-query-filters'), 'sql' => 'MONTH'],
+		'years'  => ['label' => __('Years', 'arcanum-admin-query-filters'), 'sql' => 'YEAR'],
 	];
 }
 
@@ -93,28 +93,28 @@ function operators_by_type(): array {
  */
 function operator_labels(): array {
 	return [
-		'is'                    => __('Is', 'advanced-admin-filters'),
-		'is_not'                => __('Is Not', 'advanced-admin-filters'),
-		'contains'              => __('Contains', 'advanced-admin-filters'),
-		'contains_not'          => __('Does Not Contain', 'advanced-admin-filters'),
-		'is_set'                => __('Is Set', 'advanced-admin-filters'),
-		'not_set'               => __('Is Not Set', 'advanced-admin-filters'),
-		'equals'                => __('Equals', 'advanced-admin-filters'),
-		'not_equals'            => __('Not Equals', 'advanced-admin-filters'),
-		'greater_than'          => __('Greater Than', 'advanced-admin-filters'),
-		'greater_than_or_equal' => __('Greater Than or Equal To', 'advanced-admin-filters'),
-		'less_than'             => __('Less Than', 'advanced-admin-filters'),
-		'less_than_or_equal'    => __('Less Than or Equal To', 'advanced-admin-filters'),
-		'between'               => __('Between', 'advanced-admin-filters'),
-		'not_between'           => __('Not Between', 'advanced-admin-filters'),
-		'last'                  => __('Last', 'advanced-admin-filters'),
-		'not_in_last'           => __('Not in the Last', 'advanced-admin-filters'),
-		'on'                    => __('On', 'advanced-admin-filters'),
-		'not_on'                => __('Not On', 'advanced-admin-filters'),
-		'before_last'           => __('Before the Last', 'advanced-admin-filters'),
-		'before'                => __('Before', 'advanced-admin-filters'),
-		'since'                 => __('Since', 'advanced-admin-filters'),
-		'in_next'               => __('In the Next', 'advanced-admin-filters'),
+		'is'                    => __('Is', 'arcanum-admin-query-filters'),
+		'is_not'                => __('Is Not', 'arcanum-admin-query-filters'),
+		'contains'              => __('Contains', 'arcanum-admin-query-filters'),
+		'contains_not'          => __('Does Not Contain', 'arcanum-admin-query-filters'),
+		'is_set'                => __('Is Set', 'arcanum-admin-query-filters'),
+		'not_set'               => __('Is Not Set', 'arcanum-admin-query-filters'),
+		'equals'                => __('Equals', 'arcanum-admin-query-filters'),
+		'not_equals'            => __('Not Equals', 'arcanum-admin-query-filters'),
+		'greater_than'          => __('Greater Than', 'arcanum-admin-query-filters'),
+		'greater_than_or_equal' => __('Greater Than or Equal To', 'arcanum-admin-query-filters'),
+		'less_than'             => __('Less Than', 'arcanum-admin-query-filters'),
+		'less_than_or_equal'    => __('Less Than or Equal To', 'arcanum-admin-query-filters'),
+		'between'               => __('Between', 'arcanum-admin-query-filters'),
+		'not_between'           => __('Not Between', 'arcanum-admin-query-filters'),
+		'last'                  => __('Last', 'arcanum-admin-query-filters'),
+		'not_in_last'           => __('Not in the Last', 'arcanum-admin-query-filters'),
+		'on'                    => __('On', 'arcanum-admin-query-filters'),
+		'not_on'                => __('Not On', 'arcanum-admin-query-filters'),
+		'before_last'           => __('Before the Last', 'arcanum-admin-query-filters'),
+		'before'                => __('Before', 'arcanum-admin-query-filters'),
+		'since'                 => __('Since', 'arcanum-admin-query-filters'),
+		'in_next'               => __('In the Next', 'arcanum-admin-query-filters'),
 	];
 }
 
@@ -128,8 +128,8 @@ function operator_labels(): array {
  */
 function bool_options(): array {
 	return [
-		['1', __('True', 'advanced-admin-filters')],
-		['0', __('False', 'advanced-admin-filters')],
+		['1', __('True', 'arcanum-admin-query-filters')],
+		['0', __('False', 'arcanum-admin-query-filters')],
 	];
 }
 
@@ -142,7 +142,7 @@ function bool_options(): array {
  */
 function logic_labels(): array {
 	return [
-		'AND' => __('AND', 'advanced-admin-filters'),
-		'OR'  => __('OR', 'advanced-admin-filters'),
+		'AND' => __('AND', 'arcanum-admin-query-filters'),
+		'OR'  => __('OR', 'arcanum-admin-query-filters'),
 	];
 }

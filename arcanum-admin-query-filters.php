@@ -6,15 +6,15 @@ namespace BetterAdminSearch;
  * Plugin bootstrap: registers the admin hook, builds the filterable field list, and localizes
  * it to script.js so the frontend can render the field/value pickers described there.
  *
- * Plugin Name:       Advanced Admin Filters
- * Plugin URI:        https://github.com/Rustynote/advanced-admin-filters
+ * Plugin Name:       Arcanum Admin Query Filters
+ * Plugin URI:        https://github.com/Rustynote/arcanum-admin-query-filters
  * Description:       Adds an advanced filter box to the post and page list screens, letting you combine multiple conditions with AND/OR logic to narrow results fast — no query writing required. Filter by custom fields (with string, number, boolean, or date comparisons), taxonomies, publish/modification date (including relative ranges like "in the last 7 days"), post author, status, slug, and parent. Filtered views are reflected in the URL, so they can be bookmarked or shared, and developers can add their own fields via a handful of filters. Restricted to users with the manage_options capability.
  * Version:           1.0.0
  * Requires at least: 5.2
  * Requires PHP:      8.1
  * Author:            Jaroslav Suhanek
  * Author URI:        https://wparcanum.com/
- * Text Domain:       advanced-admin-filters
+ * Text Domain:       arcanum-admin-query-filters
  * License:           GPL v3
  * License URI:       http://www.gnu.org/licenses/gpl-3.0.txt
  */
@@ -161,9 +161,9 @@ class plugin {
 		$options = $this->dropdown_options($post_type);
 
 		wp_localize_script($this->basename.'-script', 'baSearchData', [
-			'filterBoxToggleLabel'       => __('Advanced Filters', 'advanced-admin-filters'),
-			'filterBoxToggleCancelLabel' => __('Cancel', 'advanced-admin-filters'),
-			'popupTitle'                 => __('Filters', 'advanced-admin-filters'),
+			'filterBoxToggleLabel'       => __('Advanced Filters', 'arcanum-admin-query-filters'),
+			'filterBoxToggleCancelLabel' => __('Cancel', 'arcanum-admin-query-filters'),
+			'popupTitle'                 => __('Filters', 'arcanum-admin-query-filters'),
 			'fieldOptions'               => $options,
 			'postType'                   => $post_type,
 			'apiUrl'                     => get_rest_url(null, 'bas/v1/get_values'),
@@ -179,25 +179,25 @@ class plugin {
 			'operatorLabels'             => Operators\operator_labels(),
 			'boolOptions'                => Operators\bool_options(),
 			'logicLabels'                => Operators\logic_labels(),
-			'selectPlaceholder'          => __('Select…', 'advanced-admin-filters'),
-			'searchPlaceholder'          => __('Search…', 'advanced-admin-filters'),
-			'selectFieldPlaceholder'     => __('Select field…', 'advanced-admin-filters'),
-			'selectValuePlaceholder'     => __('Select value…', 'advanced-admin-filters'),
-			'applyLabel'                 => __('Apply', 'advanced-admin-filters'),
-			'removeLabel'                => __('Remove', 'advanced-admin-filters'),
-			'addConditionLabel'          => __('+ Condition', 'advanced-admin-filters'),
-			'addGroupLabel'              => __('+ Group', 'advanced-admin-filters'),
-			'whereLabel'                 => __('Where', 'advanced-admin-filters'),
-			'rangeSeparatorLabel'        => __('and', 'advanced-admin-filters'),
-			'loadingLabel'               => __('Loading…', 'advanced-admin-filters'),
-			'searchingLabel'             => __('Searching…', 'advanced-admin-filters'),
-			'noResultsLabel'             => __('No results', 'advanced-admin-filters'),
-			'pickOptionHint'             => __('Please click the option on the left.', 'advanced-admin-filters'),
+			'selectPlaceholder'          => __('Select…', 'arcanum-admin-query-filters'),
+			'searchPlaceholder'          => __('Search…', 'arcanum-admin-query-filters'),
+			'selectFieldPlaceholder'     => __('Select field…', 'arcanum-admin-query-filters'),
+			'selectValuePlaceholder'     => __('Select value…', 'arcanum-admin-query-filters'),
+			'applyLabel'                 => __('Apply', 'arcanum-admin-query-filters'),
+			'removeLabel'                => __('Remove', 'arcanum-admin-query-filters'),
+			'addConditionLabel'          => __('+ Condition', 'arcanum-admin-query-filters'),
+			'addGroupLabel'              => __('+ Group', 'arcanum-admin-query-filters'),
+			'whereLabel'                 => __('Where', 'arcanum-admin-query-filters'),
+			'rangeSeparatorLabel'        => __('and', 'arcanum-admin-query-filters'),
+			'loadingLabel'               => __('Loading…', 'arcanum-admin-query-filters'),
+			'searchingLabel'             => __('Searching…', 'arcanum-admin-query-filters'),
+			'noResultsLabel'             => __('No results', 'arcanum-admin-query-filters'),
+			'pickOptionHint'             => __('Please click the option on the left.', 'arcanum-admin-query-filters'),
 			/* translators: %s: the search text the user typed, used verbatim as the value. */
-			'useValueTemplate'           => __('Use "%s"', 'advanced-admin-filters'),
+			'useValueTemplate'           => __('Use "%s"', 'arcanum-admin-query-filters'),
 			/* translators: %d: number of checked options in a multi-select dropdown. */
-			'selectedCountTemplate'      => __('%d selected', 'advanced-admin-filters'),
-			'searchTimeoutMessage'       => __('This search took too long to run. Try a more specific search, or enter the value directly.', 'advanced-admin-filters'),
+			'selectedCountTemplate'      => __('%d selected', 'arcanum-admin-query-filters'),
+			'searchTimeoutMessage'       => __('This search took too long to run. Try a more specific search, or enter the value directly.', 'arcanum-admin-query-filters'),
 		]);
 	}
 	
@@ -241,43 +241,43 @@ class plugin {
 		
 		$options = [
 			'postmeta'    => [
-				'label'      => __('Custom Fields', 'advanced-admin-filters'),
+				'label'      => __('Custom Fields', 'arcanum-admin-query-filters'),
 				'type'       => 'string',
 				'expandable' => true,
 			],
 			'date_query'  => [
-				'label' => __('Publish Date', 'advanced-admin-filters'),
+				'label' => __('Publish Date', 'arcanum-admin-query-filters'),
 				'type'  => 'date'
 			],
 			'mod_date'    => [
-				'label' => __('Modification Date', 'advanced-admin-filters'),
+				'label' => __('Modification Date', 'arcanum-admin-query-filters'),
 				'type'  => 'date'
 			],
 			'post_author' => [
-				'label'            => __('Post Author', 'advanced-admin-filters'),
+				'label'            => __('Post Author', 'arcanum-admin-query-filters'),
 				'type'             => 'string',
 				'operatorOverride' => $is_operator,
 				'valueLookup'      => true,
 			],
 			'post_status' => [
-				'label'            => __('Post Status', 'advanced-admin-filters'),
+				'label'            => __('Post Status', 'arcanum-admin-query-filters'),
 				'type'             => 'string',
 				'operatorOverride' => $is_operator,
 				'localSearch'      => true,
 			],
 			'post_name'   => [
-				'label'            => __('Post Slug', 'advanced-admin-filters'),
+				'label'            => __('Post Slug', 'arcanum-admin-query-filters'),
 				'type'             => 'string',
 				'operatorOverride' => $is_operator,
 			],
 			'post_parent' => [
-				'label'            => __('Post Parent', 'advanced-admin-filters'),
+				'label'            => __('Post Parent', 'arcanum-admin-query-filters'),
 				'type'             => 'number',
 				'operatorOverride' => $is_operator,
 				'postPicker'       => true,
 			],
 			'taxonomies'  => [
-				'label'       => __('Taxonomies', 'advanced-admin-filters'),
+				'label'       => __('Taxonomies', 'arcanum-admin-query-filters'),
 				'type'        => 'string',
 				'expandable'  => true,
 				'valueLookup' => true,
@@ -298,10 +298,10 @@ class plugin {
 	 */
 	function data_types(): array {
 		return [
-			'string' => __('String', 'advanced-admin-filters'),
-			'number' => __('Number', 'advanced-admin-filters'),
-			'bool'   => __('Bool (True / False)', 'advanced-admin-filters'),
-			'date'   => __('Date', 'advanced-admin-filters'),
+			'string' => __('String', 'arcanum-admin-query-filters'),
+			'number' => __('Number', 'arcanum-admin-query-filters'),
+			'bool'   => __('Bool (True / False)', 'arcanum-admin-query-filters'),
+			'date'   => __('Date', 'arcanum-admin-query-filters'),
 		];
 	}
 }
@@ -342,7 +342,7 @@ function is_rest_request(): bool {
 
 	// str_contains() would need WordPress 5.9's polyfill on PHP < 8.0, but this plugin already
 	// requires PHP 8.1 (see the file header), where it's always natively available.
-	return strpos($request_uri, $rest_prefix) !== false;
+	return str_contains($request_uri, $rest_prefix);
 }
 
 // Load plugin only in wp-admin or on REST API requests; skip the frontend.

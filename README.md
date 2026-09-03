@@ -1,4 +1,4 @@
-# Advanced Admin Filters
+# Arcanum Admin Query Filters
 
 Adds an advanced filter box to the WordPress admin post/page list screens, letting you combine multiple conditions with AND/OR logic to narrow results fast.
 
@@ -11,13 +11,13 @@ Filter by custom fields (postmeta), taxonomies, publish/modification date (inclu
 
 ## Installation
 
-1. Copy the plugin into `wp-content/plugins/advanced-admin-filters`.
+1. Copy the plugin into `wp-content/plugins/arcanum-admin-query-filters`.
 2. Activate it under Plugins in wp-admin.
 3. Go to Posts (or any post type's list screen) and click **Advanced Filters**.
 
 ## How it works
 
-- [`plugin.php`](plugin.php) boots the plugin, builds the field list (`dropdown_options()`), and localizes it to `assets/script.js` as `baSearchData`.
+- [`arcanum-admin-query-filters.php`](arcanum-admin-query-filters.php) boots the plugin, builds the field list (`dropdown_options()`), and localizes it to `assets/script.js` as `baSearchData`.
 - [`assets/script.js`](assets/script.js) renders the filter UI from that field list and submits the chosen conditions as a `ba_search` query-string parameter on the list screen's own URL (`GET edit.php?ba_search[groups][...]`).
 - [`includes/filter.php`](includes/filter.php) reads `$_GET['ba_search']` on `pre_get_posts` and turns it into SQL `JOIN`/`WHERE` clauses added to the list table's query.
 - [`includes/endpoints.php`](includes/endpoints.php) exposes two REST routes (`bas/v1/get_keys`, `bas/v1/get_values`) the UI calls to populate the field/value pickers — e.g. which postmeta keys exist, or which values a given key currently has. Both are filterable, so a plugin-added field gets pickers too — see "Extending" below.
@@ -28,11 +28,11 @@ The built-in fields (Custom Fields, Taxonomies, Publish Date, Modification Date,
 
 | Filter | Called from | Purpose |
 |---|---|---|
-| `ba_search_dropdown_options` | [`plugin.php`](plugin.php) `dropdown_options()` | Adds the field to the picker and describes it (label, data type, flags). |
+| `ba_search_dropdown_options` | [`arcanum-admin-query-filters.php`](arcanum-admin-query-filters.php) `dropdown_options()` | Adds the field to the picker and describes it (label, data type, flags). |
 | `ba_search_get_keys` | [`includes/endpoints.php`](includes/endpoints.php) `get_keys()` | Supplies the sub-identifier list (which meta key, which taxonomy, ...) for a field marked `expandable`. |
 | `ba_search_get_values` | [`includes/endpoints.php`](includes/endpoints.php) `get_values()` | Supplies the value picker's list for the field. |
 | `ba_search_build_condition` | [`includes/filter.php`](includes/filter.php) `build_condition_sql()` | Supplies the SQL (`JOIN`/`WHERE`) for the field once a condition on it is submitted. |
-| `ba_search_editable_data_type_fields` | [`plugin.php`](plugin.php) `admin_enqueue_scripts()` | Opts a field into letting the user override its default data type (like Custom Fields does). |
+| `ba_search_editable_data_type_fields` | [`arcanum-admin-query-filters.php`](arcanum-admin-query-filters.php) `admin_enqueue_scripts()` | Opts a field into letting the user override its default data type (like Custom Fields does). |
 
 `ba_search_get_keys`, `ba_search_get_values`, and `ba_search_build_condition` are only required if your field actually needs them — see the data-type notes below.
 
